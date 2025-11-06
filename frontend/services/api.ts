@@ -2,18 +2,22 @@ const API_BASE_URL = "http://localhost:8000";
 
 export interface Message {
   id: number;
+  conversationId?: number;
   role: 'user' | 'assistant' | 'system';
   content: string;
   created_at: string;
+  timestamp?: number;
   metadata?: string | null;
 }
 
 export interface Conversation {
   id: number;
   title: string;
-  user_id: string;
+  user_id?: string;
   created_at: string;
+  updated_at?: string;
   message_count?: number;
+  is_archived?: boolean;
 }
 
 class ApiService {

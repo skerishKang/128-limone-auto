@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import FileUpload from '../../components/shared/FileUpload';
-import { apiService } from '../../services/api';
-import LoadingSpinner from '../../components/shared/LoadingSpinner';
-import ErrorMessage from '../../components/shared/ErrorMessage';
+import FileUpload from '../components/shared/FileUpload';
+import { apiService } from '../services/api';
+import LoadingSpinner from '../components/shared/LoadingSpinner';
+import ErrorMessage from '../components/shared/ErrorMessage';
 
 export default function FilePage() {
   const [files, setFiles] = useState<any[]>([]);

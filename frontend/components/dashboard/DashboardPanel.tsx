@@ -89,10 +89,10 @@ export default function DashboardPanel() {
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-2">
-          <GmailWidget count={stats.gmail} />
-          <CalendarWidget count={stats.calendar} />
-          <TelegramWidget count={stats.telegram} />
-          <DriveWidget count={stats.drive} />
+          <GmailWidget />
+          <CalendarWidget />
+          <TelegramWidget />
+          <DriveWidget />
           <WeatherWidget />
           <SystemWidget />
           <NewsWidget />

@@ -1,14 +1,5 @@
 import { useState, useEffect } from 'react';
-import { apiService } from '../services/api';
-
-interface Conversation {
-  id: number;
-  title: string;
-  created_at: string;
-  updated_at: string;
-  message_count: number;
-  is_archived: boolean;
-}
+import { apiService, Conversation } from '../services/api';
 
 export function useConversations() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
