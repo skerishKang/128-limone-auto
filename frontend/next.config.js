@@ -5,8 +5,6 @@ const nextConfig = {
 
   // Performance optimizations
   experimental: {
-    appDir: false, // Pages Router 사용
-    optimizeCss: true,
     scrollRestoration: true,
   },
 

@@ -1,46 +1,25 @@
-import { Message } from '../../services/api';
-
-interface MessageBubbleProps {
-  message: Message;
+interface LoadingSpinnerProps {
+  size?: 'sm' | 'md' | 'lg';
+  color?: string;
 }
 
-export default function MessageBubble({ message }: MessageBubbleProps) {
-  const isUser = message.role === 'user';
-  const isSystem = message.role === 'system';
-
-  if (isSystem) {
-    return (
-      <div className="flex justify-center">
-        <div className="bg-gray-200 text-gray-600 text-sm px-4 py-2 rounded-full">
-          {message.content}
-        </div>
-      </div>
-    );
-  }
+export default function LoadingSpinner({ size = 'md', color = 'text-blue-500' }: LoadingSpinnerProps) {
+  const sizeClasses = {
+    sm: 'w-4 h-4',
+    md: 'w-8 h-8',
+    lg: 'w-12 h-12',
+  };
 
   return (
-    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
-      <div className={`
-        max-w-[70%] rounded-2xl px-4 py-3 shadow-sm
-        ${isUser 
-          ? 'bg-yellow-400 text-gray-900' 
-          : 'bg-white text-gray-800 border border-gray-200'
-        }
-      `}>
-        <div className="whitespace-pre-wrap break-words">
-          {message.content}
-        </div>
-        
-        <div className={`
-          text-xs mt-2 
-          ${isUser ? 'text-gray-700' : 'text-gray-500'}
-        `}>
-          {new Date(message.created_at).toLocaleTimeString('ko-KR', {
-            hour: '2-digit',
-            minute: '2-digit'
-          })}
-        </div>
-      </div>
+    <div className="flex justify-center items-center">
+      <div
+        className={`${sizeClasses[size]} ${color} animate-spin`}
+        style={{
+          border: '2px solid currentColor',
+          borderTop: '2px solid transparent',
+          borderRadius: '50%',
+        }}
+      />
     </div>
   );
 }

@@ -1,46 +1,42 @@
-import { Message } from '../../services/api';
-
-interface MessageBubbleProps {
-  message: Message;
+interface ActionButton {
+  id: string;
+  label: string;
+  action: () => void;
+  variant?: 'primary' | 'secondary' | 'danger';
+  icon?: React.ReactNode;
+  disabled?: boolean;
 }
 
-export default function MessageBubble({ message }: MessageBubbleProps) {
-  const isUser = message.role === 'user';
-  const isSystem = message.role === 'system';
+interface ActionButtonsProps {
+  buttons: ActionButton[];
+  className?: string;
+}
 
-  if (isSystem) {
-    return (
-      <div className="flex justify-center">
-        <div className="bg-gray-200 text-gray-600 text-sm px-4 py-2 rounded-full">
-          {message.content}
-        </div>
-      </div>
-    );
-  }
+export default function ActionButtons({ buttons, className = '' }: ActionButtonsProps) {
+  const variantStyles = {
+    primary: 'bg-blue-600 hover:bg-blue-700 text-white',
+    secondary: 'bg-gray-200 hover:bg-gray-300 text-gray-800',
+    danger: 'bg-red-600 hover:bg-red-700 text-white',
+  };
 
   return (
-    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
-      <div className={`
-        max-w-[70%] rounded-2xl px-4 py-3 shadow-sm
-        ${isUser 
-          ? 'bg-yellow-400 text-gray-900' 
-          : 'bg-white text-gray-800 border border-gray-200'
-        }
-      `}>
-        <div className="whitespace-pre-wrap break-words">
-          {message.content}
-        </div>
-        
-        <div className={`
-          text-xs mt-2 
-          ${isUser ? 'text-gray-700' : 'text-gray-500'}
-        `}>
-          {new Date(message.created_at).toLocaleTimeString('ko-KR', {
-            hour: '2-digit',
-            minute: '2-digit'
-          })}
-        </div>
-      </div>
+    <div className={`flex flex-wrap gap-2 ${className}`}>
+      {buttons.map((button) => (
+        <button
+          key={button.id}
+          onClick={button.action}
+          disabled={button.disabled}
+          className={`
+            inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium
+            transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2
+            ${variantStyles[button.variant || 'secondary']}
+            ${button.disabled ? 'opacity-50 cursor-not-allowed' : ''}
+          `}
+        >
+          {button.icon && <span className="w-4 h-4">{button.icon}</span>}
+          {button.label}
+        </button>
+      ))}
     </div>
   );
 }

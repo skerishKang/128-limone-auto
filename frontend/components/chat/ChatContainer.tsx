@@ -1,45 +1,54 @@
+import { useState, useRef, useEffect } from 'react';
 import { Message } from '../../services/api';
+import MessageBubble from './MessageBubble';
+import ChatInput from './ChatInput';
+import LoadingSpinner from '../shared/LoadingSpinner';
 
-interface MessageBubbleProps {
-  message: Message;
+interface ChatContainerProps {
+  messages: Message[];
+  onSendMessage: (content: string) => void;
+  isLoading?: boolean;
 }
 
-export default function MessageBubble({ message }: MessageBubbleProps) {
-  const isUser = message.role === 'user';
-  const isSystem = message.role === 'system';
+export default function ChatContainer({ messages, onSendMessage, isLoading = false }: ChatContainerProps) {
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  if (isSystem) {
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  if (!messages || messages.length === 0) {
     return (
-      <div className="flex justify-center">
-        <div className="bg-gray-200 text-gray-600 text-sm px-4 py-2 rounded-full">
-          {message.content}
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-center text-gray-500">
+          <h3 className="text-lg font-semibold mb-2">채팅을 시작해보세요!</h3>
+          <p className="text-sm">아래 입력창에 메시지를 입력하거나 파일을 업로드하세요.</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
-      <div className={`
-        max-w-[70%] rounded-2xl px-4 py-3 shadow-sm
-        ${isUser 
-          ? 'bg-yellow-400 text-gray-900' 
-          : 'bg-white text-gray-800 border border-gray-200'
-        }
-      `}>
-        <div className="whitespace-pre-wrap break-words">
-          {message.content}
-        </div>
-        
-        <div className={`
-          text-xs mt-2 
-          ${isUser ? 'text-gray-700' : 'text-gray-500'}
-        `}>
-          {new Date(message.created_at).toLocaleTimeString('ko-KR', {
-            hour: '2-digit',
-            minute: '2-digit'
-          })}
-        </div>
+    <div className="flex-1 flex flex-col h-full">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {messages.map((message) => (
+          <MessageBubble key={message.id} message={message} />
+        ))}
+        {isLoading && (
+          <div className="flex justify-start">
+            <div className="bg-gray-100 text-gray-800 rounded-lg px-4 py-2">
+              <LoadingSpinner size="sm" />
+            </div>
+          </div>
+        )}
+        <div ref={messagesEndRef} />
+      </div>
+      <div className="border-t border-gray-200 p-4">
+        <ChatInput onSendMessage={onSendMessage} />
       </div>
     </div>
   );
