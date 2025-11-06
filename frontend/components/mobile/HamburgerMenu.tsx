@@ -22,12 +22,10 @@ export default function HamburgerMenu({ isOpen, onClose, children }: HamburgerMe
 
       {/* 사이드 메뉴 */}
       <div
-        className="
-          fixed top-0 right-0 h-full w-80
-          bg-white shadow-xl z-50
-          transform transition-transform
-          ${isOpen ? 'translate-x-0' : 'translate-x-full'}
-        "
+        className={
+          "fixed top-0 right-0 h-full w-80 bg-white shadow-xl z-50 transform transition-transform " +
+          (isOpen ? "translate-x-0" : "translate-x-full")
+        }
       >
         {/* 헤더 */}
         <div className="p-4 border-b flex items-center justify-between">

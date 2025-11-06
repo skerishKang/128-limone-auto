@@ -31,10 +31,10 @@ export default function DashboardPanel() {
   const refreshAll = async () => {
     try {
       setIsLoading(true);
-      
+
       // 더미 데이터 로드
       await new Promise(resolve => setTimeout(resolve, 500)); // 로딩 시뮬레이션
-      
+
       setStats({
         gmail: 5,
         calendar: 3,
@@ -42,7 +42,7 @@ export default function DashboardPanel() {
         drive: 48,
         tasks: 3
       });
-      
+
       setLastUpdated(new Date());
     } catch (err) {
       console.error('Failed to refresh dashboard:', err);
@@ -59,121 +59,97 @@ export default function DashboardPanel() {
   }, []);
 
   return (
-    <div className="h-full bg-gray-50 dark:bg-gray-800 p-6 overflow-y-auto custom-scrollbar">
-      <header className="flex justify-between items-center mb-6">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-800">📊 Dashboard</h2>
-          <p className="text-sm text-gray-500 mt-1">
-            마지막 업데이트: {lastUpdated.toLocaleTimeString('ko-KR')}
-          </p>
-        </div>
+    <div className="h-full bg-white p-3">
+      {/* 헤더 */}
+      <div className="flex justify-between items-center mb-3">
+        <h2 className="text-sm font-bold text-gray-800">📊 대시보드</h2>
         <button
           onClick={refreshAll}
           disabled={isLoading}
           className="
-            px-4 py-2
+            text-xs px-2 py-1
             bg-yellow-400 hover:bg-yellow-500
             disabled:bg-gray-300
-            text-gray-900 rounded-lg
-            font-medium text-sm
+            text-gray-900 rounded
             transition-colors
-            flex items-center gap-2
           "
         >
-          {isLoading ? (
-            <>
-              <LoadingSpinner size="sm" />
-              새로고침 중...
-            </>
-          ) : (
-            <>
-              🔄 새로고침
-            </>
-          )}
+          {isLoading ? '⟳' : '🔄'}
         </button>
-      </header>
-
-      {/* 위젯 그리드 - 8개 위젯 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <GmailWidget count={stats.gmail} />
-        <CalendarWidget count={stats.calendar} />
-        <TelegramWidget count={stats.telegram} />
-        <DriveWidget count={stats.drive} />
-        <WeatherWidget />
-        <NewsWidget />
-        <SystemWidget />
-        <TodoWidget />
       </div>
 
-      {/* 추가 통계 카드들 */}
-      <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white rounded-xl p-4 shadow-sm">
-          <h3 className="text-sm font-semibold text-gray-600 mb-2">📈 요약</h3>
-          <div className="space-y-1">
-            <p className="text-sm text-gray-700">
-              총 알림: <span className="font-bold">{stats.gmail + stats.telegram}</span>
-            </p>
-            <p className="text-sm text-gray-700">
-              오늘 일정: <span className="font-bold">{stats.calendar}</span>
-            </p>
-            <p className="text-sm text-gray-700">
-              Drive 파일: <span className="font-bold">{stats.drive}</span>
-            </p>
-            <p className="text-sm text-gray-700">
-              완료된 할 일: <span className="font-bold">{stats.tasks}</span>
-            </p>
-          </div>
-        </div>
+      <div className="text-xs text-gray-500 mb-3">
+        {lastUpdated.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
+      </div>
 
-        <div className="bg-white rounded-xl p-4 shadow-sm">
-          <h3 className="text-sm font-semibold text-gray-600 mb-2">🎯 빠른 액션</h3>
-          <div className="space-y-2">
-            <button className="w-full text-left text-sm text-blue-600 hover:underline">
-              ➕ 새 일정 추가
-            </button>
-            <button className="w-full text-left text-sm text-blue-600 hover:underline">
-              📧 새 메일 작성
-            </button>
-            <button className="w-full text-left text-sm text-blue-600 hover:underline">
-              📁 Drive에 업로드
-            </button>
-            <button className="w-full text-left text-sm text-blue-600 hover:underline">
-              ✅ 할 일 추가
-            </button>
-          </div>
+      {/* 위젯 그리드 - 2컬럼으로 축소 */}
+      {isLoading ? (
+        <div className="flex items-center justify-center py-8">
+          <LoadingSpinner size="sm" />
         </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-2">
+          <GmailWidget count={stats.gmail} />
+          <CalendarWidget count={stats.calendar} />
+          <TelegramWidget count={stats.telegram} />
+          <DriveWidget count={stats.drive} />
+          <WeatherWidget />
+          <SystemWidget />
+          <NewsWidget />
+          <TodoWidget />
+        </div>
+      )}
 
-        <div className="bg-white rounded-xl p-4 shadow-sm">
-          <h3 className="text-sm font-semibold text-gray-600 mb-2">ℹ️ 상태</h3>
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-              <p className="text-sm text-gray-700">AI 온라인</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-              <p className="text-sm text-gray-700">Gemini API 연결됨</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-              <p className="text-sm text-gray-700">모든 서비스 정상</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
-              <p className="text-sm text-gray-700">실시간 업데이트</p>
-            </div>
-          </div>
+      {/* 요약 카드 */}
+      <div className="mt-3 p-2 bg-gray-50 rounded-lg">
+        <h3 className="text-xs font-semibold text-gray-600 mb-2">📈 요약</h3>
+        <div className="space-y-1">
+          <p className="text-xs text-gray-700">
+            🔔 알림: <span className="font-bold">{stats.gmail + stats.telegram}</span>
+          </p>
+          <p className="text-xs text-gray-700">
+            📅 일정: <span className="font-bold">{stats.calendar}</span>
+          </p>
+          <p className="text-xs text-gray-700">
+            📁 Drive: <span className="font-bold">{stats.drive}</span>
+          </p>
+          <p className="text-xs text-gray-700">
+            ✅ 할 일: <span className="font-bold">{stats.tasks}</span>
+          </p>
         </div>
       </div>
 
-      {/* 업데이트 로그 */}
-      <div className="mt-6 bg-white rounded-xl p-4 shadow-sm">
-        <h3 className="text-sm font-semibold text-gray-600 mb-2">📝 업데이트 로그</h3>
-        <div className="text-xs text-gray-500 space-y-1">
-          <p>• 2024-11-07: v1.0 - 기본 기능 완성</p>
-          <p>• 2024-11-07: Gemini 2.0 API 연동 완료</p>
-          <p>• 2024-11-07: 8개 대시보드 위젯 추가</p>
-          <p>• 2024-11-07: Enhanced State Management 적용</p>
+      {/* 빠른 액션 */}
+      <div className="mt-3 p-2 bg-gray-50 rounded-lg">
+        <h3 className="text-xs font-semibold text-gray-600 mb-2">🎯 빠른 액션</h3>
+        <div className="space-y-1">
+          <button className="w-full text-left text-xs text-blue-600 hover:underline">
+            ➕ 새 일정
+          </button>
+          <button className="w-full text-left text-xs text-blue-600 hover:underline">
+            📧 새 메일
+          </button>
+          <button className="w-full text-left text-xs text-blue-600 hover:underline">
+            📁 업로드
+          </button>
+          <button className="w-full text-left text-xs text-blue-600 hover:underline">
+            ✅ 할 일 추가
+          </button>
+        </div>
+      </div>
+
+      {/* 상태 */}
+      <div className="mt-3 p-2 bg-gray-50 rounded-lg">
+        <h3 className="text-xs font-semibold text-gray-600 mb-2">ℹ️ 상태</h3>
+        <div className="space-y-1">
+          <div className="flex items-center gap-1">
+            <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
+            <p className="text-xs text-gray-700">AI 온라인</p>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
+            <p className="text-xs text-gray-700">Gemini 연결됨</p>
+          </div>
         </div>
       </div>
     </div>
