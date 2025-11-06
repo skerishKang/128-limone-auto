@@ -175,6 +175,47 @@ npm run test:coverage   # 커버리지 리포트
 npm run build          # 프로덕션 빌드
 ```
 
+### ✅ 테스트 체크리스트 (배포 전 필수 확인)
+
+#### Backend API 테스트
+- [ ] FastAPI 서버 실행 확인 (`http://localhost:8000/docs` 접근)
+- [ ] 데이터베이스 초기화 (SQLite 파일 생성)
+- [ ] 채팅 API 응답 (새 대화 생성 → 메시지 전송 → AI 응답 수신)
+- [ ] 파일 업로드 API (PDF/이미지 업로드 → AI 분석 결과 수신)
+- [ ] WebSocket 연결 (실시간 메시지收发 테스트)
+- [ ] Gemini API 연동 (유효한 API 키로 AI 응답 생성)
+
+#### Frontend UI 테스트
+- [ ] 메인 페이지 로딩 (대시보드 + 채팅 레이아웃)
+- [ ] 새 대화 생성 (사이드바에 새 대화 표시)
+- [ ] 메시지 입력/전송 (텍스트 → 엔터 → AI 응답)
+- [ ] 채팅 히스토리 (이전 대화 목록 및 메시지 조회)
+- [ ] 모바일 반응형 (브라우저 크기 축소 → 모바일 모드 전환)
+- [ ] PWA 설치 (브라우저에 "홈화면에 추가" 가능)
+
+#### 대시보드 위젯 테스트
+- [ ] Gmail 위젯 (위젯 렌더링 및 데이터 표시)
+- [ ] Calendar 위젯 (위젯 렌더링 및 데이터 표시)
+- [ ] Telegram 위젯 (위젯 렌더링 및 데이터 표시)
+- [ ] Drive 위젯 (위젯 렌더링 및 데이터 표시)
+- [ ] Weather 위젯 (날씨 정보 표시)
+- [ ] News 위젯 (뉴스 피드 표시)
+- [ ] System 위젯 (CPU/Memory 정보 표시)
+- [ ] Todo 위젯 (할 일 목록 관리)
+
+#### 통합 테스트
+- [ ] 백엔드 + 프론트엔드 동시 실행
+- [ ] 브라우저에서 전체 워크플로우 테스트
+- [ ] AI 응답 시간 확인 (3초 이내 권장)
+- [ ] 에러 처리 (잘못된 API 요청 시 적절한 에러 메시지)
+
+#### 프로덕션 배포 전
+- [ ] `.env` 파일 설정 완료 (API 키, JWT Secret 등)
+- [ ] 디버그 모드 비활성화 (`DEBUG=False`)
+- [ ] HTTPS 설정 (프로덕션 환경)
+- [ ] CORS 도메인 제한 (보안 강화)
+- [ ] 백업 전략 (데이터베이스, 파일 저장소)
+
 ### ⚙️ 환경 설정
 ```bash
 # 백엔드 .env 파일 생성
@@ -185,9 +226,70 @@ cp backend/.env.example backend/.env
 cp .env.example .env
 ```
 
-### 🔍 API 문서
-- **Backend API**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
+### 🔍 API 문서 및 사용 예시
+
+#### 자동 생성된 API 문서
+- **Swagger UI**: http://localhost:8000/docs (인터랙티브 API 테스트)
+- **ReDoc**: http://localhost:8000/redoc ( élégante 문서 뷰어)
+
+#### 📡 API 사용 예시 (cURL)
+
+**1. 새 대화 생성**
+```bash
+curl -X POST "http://localhost:8000/chat/conversations" \
+  -H "Content-Type: application/json" \
+  -d '{"title": "새로운 대화"}'
+```
+
+**2. 메시지 전송**
+```bash
+curl -X POST "http://localhost:8000/chat/messages" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "conversation_id": 1,
+    "content": "안녕하세요! Gemini AI에게 질문하겠습니다."
+  }'
+```
+
+**3. 파일 업로드 및 AI 분석**
+```bash
+curl -X POST "http://localhost:8000/files/upload" \
+  -F "file=@./테스트_문서.pdf" \
+  -F "file_type=.pdf"
+```
+
+**4. 대화 목록 조회**
+```bash
+curl -X GET "http://localhost:8000/chat/conversations"
+```
+
+#### 🧪 Postman CollectionImport
+Postman에서 다음 설정으로 쉽게 API를 테스트할 수 있습니다:
+
+```json
+{
+  "info": {
+    "name": "Limone Auto API",
+    "description": "128-limone-auto API 테스트 컬렉션"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{JWT_TOKEN}}",
+        "type": "string"
+      }
+    ]
+  }
+}
+```
 
 ## 📊 프로젝트 통계
 - **파일 수**: 65+
