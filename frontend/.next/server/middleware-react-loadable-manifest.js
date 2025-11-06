@@ -1,1 +1,1 @@
-self.__REACT_LOADABLE_MANIFEST="{}";
+self.__REACT_LOADABLE_MANIFEST='{"pages\\\\index.tsx -> ../layouts/DesktopLayout":{"id":871,"files":["static/chunks/172.2352f12d4ad95e50.js","static/chunks/871.3209c0ed51e122b2.js"]},"pages\\\\index.tsx -> ../layouts/MobileLayout":{"id":2985,"files":["static/chunks/172.2352f12d4ad95e50.js","static/chunks/985.759053c551086d04.js"]}}';

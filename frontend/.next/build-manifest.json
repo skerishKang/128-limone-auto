@@ -5,40 +5,40 @@
   "devFiles": [],
   "ampDevFiles": [],
   "lowPriorityFiles": [
-    "static/vrNQjQy598-rlVSdNesB1/_buildManifest.js",
-    "static/vrNQjQy598-rlVSdNesB1/_ssgManifest.js"
+    "static/aAWLvvS-pqEZnx1yWguUB/_buildManifest.js",
+    "static/aAWLvvS-pqEZnx1yWguUB/_ssgManifest.js"
   ],
   "rootMainFiles": [],
   "pages": {
     "/": [
-      "static/chunks/webpack-8fa1640cc84ba8fe.js",
+      "static/chunks/webpack-a731055b6d21128e.js",
       "static/chunks/vendors-f67df17f-da8087030a5d7c53.js",
-      "static/chunks/vendors-2898f16f-e074bc59712ca80f.js",
+      "static/chunks/vendors-2898f16f-d3e2fb4a1b164735.js",
       "static/chunks/vendors-8cbd2506-6dadd4c188b1aaee.js",
       "static/chunks/main-7ce9e308f16e040f.js",
-      "static/chunks/pages/index-eabe22da1b2b5dc5.js"
+      "static/chunks/pages/index-f69cacf079425508.js"
     ],
     "/_app": [
-      "static/chunks/webpack-8fa1640cc84ba8fe.js",
+      "static/chunks/webpack-a731055b6d21128e.js",
       "static/chunks/vendors-f67df17f-da8087030a5d7c53.js",
-      "static/chunks/vendors-2898f16f-e074bc59712ca80f.js",
+      "static/chunks/vendors-2898f16f-d3e2fb4a1b164735.js",
       "static/chunks/vendors-8cbd2506-6dadd4c188b1aaee.js",
       "static/chunks/main-7ce9e308f16e040f.js",
-      "static/css/f3ef2beff0590e63.css",
+      "static/css/beeeaf2a645dc85a.css",
       "static/chunks/pages/_app-61331d34cfa44268.js"
     ],
     "/_error": [
-      "static/chunks/webpack-8fa1640cc84ba8fe.js",
+      "static/chunks/webpack-a731055b6d21128e.js",
       "static/chunks/vendors-f67df17f-da8087030a5d7c53.js",
-      "static/chunks/vendors-2898f16f-e074bc59712ca80f.js",
+      "static/chunks/vendors-2898f16f-d3e2fb4a1b164735.js",
       "static/chunks/vendors-8cbd2506-6dadd4c188b1aaee.js",
       "static/chunks/main-7ce9e308f16e040f.js",
       "static/chunks/pages/_error-095c196158402cee.js"
     ],
     "/files": [
-      "static/chunks/webpack-8fa1640cc84ba8fe.js",
+      "static/chunks/webpack-a731055b6d21128e.js",
       "static/chunks/vendors-f67df17f-da8087030a5d7c53.js",
-      "static/chunks/vendors-2898f16f-e074bc59712ca80f.js",
+      "static/chunks/vendors-2898f16f-d3e2fb4a1b164735.js",
       "static/chunks/vendors-8cbd2506-6dadd4c188b1aaee.js",
       "static/chunks/main-7ce9e308f16e040f.js",
       "static/chunks/pages/files-f3747a38247749a9.js"
