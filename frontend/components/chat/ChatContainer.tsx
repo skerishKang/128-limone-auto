@@ -112,14 +112,14 @@ export default function ChatContainer({ conversationId }: ChatContainerProps) {
 
   if (!messages || messages.length === 0) {
     return (
-      <div className="flex-1 flex flex-col">
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center text-gray-500">
+      <div className="flex-1 flex flex-col h-full overflow-hidden">
+        <div className="flex-1 flex items-center justify-center overflow-hidden">
+          <div className="text-center text-gray-500 p-4">
             <h3 className="text-lg font-semibold mb-2">💬 새로운 대화를 시작하세요!</h3>
             <p className="text-sm">아래 입력창에 메시지를 입력하세요.</p>
           </div>
         </div>
-        <div className="border-t border-gray-200 p-4">
+        <div className="border-t border-gray-200 p-4 flex-shrink-0">
           <ChatInput onSendMessage={handleSendMessage} />
         </div>
       </div>
@@ -127,17 +127,17 @@ export default function ChatContainer({ conversationId }: ChatContainerProps) {
   }
 
   return (
-    <div className="flex-1 flex flex-col h-full">
-      {/* 메시지 영역 */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+    <div className="flex-1 flex flex-col h-full overflow-hidden">
+      {/* 메시지 영역 - 독립 스크롤 */}
+      <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4">
         {messages.map((message) => (
           <MessageBubble key={message.id} message={message} />
         ))}
         <div ref={messagesEndRef} />
       </div>
 
-      {/* 입력창 */}
-      <div className="border-t border-gray-200 p-4">
+      {/* 입력창 - 고정 */}
+      <div className="border-t border-gray-200 p-4 flex-shrink-0">
         <ChatInput onSendMessage={handleSendMessage} />
       </div>
     </div>
