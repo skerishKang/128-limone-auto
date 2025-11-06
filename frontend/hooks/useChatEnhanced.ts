@@ -23,7 +23,7 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
         conversations: new Map(),
         messages: new Map(),
         isTyping: false,
-        currentModel: 'gemini-pro',
+        currentModel: 'gemini-2.5-flash',
         settings: {
           temperature: 0.7,
           maxTokens: 2048,

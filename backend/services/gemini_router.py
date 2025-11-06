@@ -23,8 +23,8 @@ class GeminiService:
         genai.configure(api_key=api_key)
         
         # Initialize models
-        self.text_model = genai.GenerativeModel('gemini-pro')
-        self.pro_vision_model = genai.GenerativeModel('gemini-pro-vision')
+        self.text_model = genai.GenerativeModel('gemini-2.5-flash')
+        self.pro_vision_model = genai.GenerativeModel('gemini-2.5-flash')
         
     async def generate_text(self, prompt: str, system_instruction: str = None) -> str:
         """
@@ -91,7 +91,7 @@ class GeminiService:
                         "감정 및 상황 분석"
                     ],
                     "metadata": {
-                        "model": "gemini-pro-vision",
+                        "model": "gemini-2.5-flash",
                         "processed_at": "2024-11-07",
                         "api_status": "active"
                     }
@@ -127,7 +127,7 @@ class GeminiService:
                     "content_preview": content[:500] + "..." if len(content) > 500 else content,
                     "key_points": self._extract_key_points(response),
                     "metadata": {
-                        "model": "gemini-pro",
+                        "model": "gemini-2.5-flash-exp",
                         "processed_at": "2024-11-07",
                         "api_status": "active"
                     }
@@ -152,7 +152,7 @@ class GeminiService:
                     "처리 완료"
                 ],
                 "metadata": {
-                    "model": "gemini-pro",
+                    "model": "gemini-2.5-flash-exp",
                     "processed_at": "2024-11-07",
                     "api_status": "active"
                 }
@@ -229,7 +229,7 @@ class GeminiService:
                     "기본 분석 완료"
                 ],
                 "metadata": {
-                    "model": "gemini-pro-fallback",
+                    "model": "gemini-2.5-flash-exp-fallback",
                     "processed_at": "2024-11-07",
                     "api_status": "fallback"
                 }
@@ -243,7 +243,7 @@ class GeminiService:
     def get_status(self) -> Dict[str, Any]:
         """서비스 상태 정보"""
         return {
-            "model": "gemini-pro",
+            "model": "gemini-2.5-flash-exp",
             "configured": self.is_configured(),
             "api_keys_loaded": {
                 "main": bool(GEMINI_API_KEYS["main"]),
