@@ -1,100 +1,157 @@
-# Limone Chat
+# 🍋 Limone Auto - 모듈형 AI 허브
 
-간단하고 깔끔한 채팅 인터페이스를 위한 React + TypeScript + Tailwind CSS 프로젝트입니다.
+**Desktop**: 대시보드(30%) + 채팅(70%)  
+**Mobile**: 채팅(100%) - 동일한 컴포넌트 사용
 
-## 기술 스택
+## 🚀 기술 스택
 
-- **React 18** - UI 라이브러리
+### Frontend
+- **Next.js 14** - React 프레임워크
 - **TypeScript** - 타입 안정성
-- **Vite** - 빌드 도구
-- **Tailwind CSS** - 스타일링
-- **Custom Hooks** - 채팅 로직 관리
+- **Tailwind CSS** - 유틸리티 CSS
+- **Custom Hooks** - 로직 분리
 
-## 프로젝트 구조
+### Backend
+- **FastAPI** - Python 웹 프레임워크
+- **SQLite** - 로컬 데이터베이스
+- **WebSocket** - 실시간 통신
+- **Uvicorn** - ASGI 서버
+
+### AI
+- **Gemini 2.0 Flash** - 다중 계정 지원
+- **파일 처리** - PDF, 이미지, 문서 분석
+
+## 📁 프로젝트 구조
 
 ```
-src/
-├── components/
-│   └── chat/
-│       ├── ChatContainer.tsx    # 메인 채팅 컨테이너
-│       ├── MessageBubble.tsx    # 메시지 버블 컴포넌트
-│       └── ChatInput.tsx        # 채팅 입력 컴포넌트
-├── hooks/
-│   └── useChat.ts               # 채팅 로직 훅
-├── types/
-│   └── chat.ts                  # 채팅 관련 타입 정의
-├── utils/
-│   └── chatUtils.ts             # 채팅 유틸리티 함수
-├── App.tsx                      # 메인 App 컴포넌트
-├── main.tsx                     # 진입점
-└── index.css                    # 전역 스타일
+128-limone-auto/
+├── frontend/                 # Next.js Frontend
+│   ├── components/
+│   │   ├── chat/            # 💬 채팅 컴포넌트
+│   │   ├── dashboard/       # 📊 대시보드 위젯 (예정)
+│   │   ├── mobile/          # 📱 모바일 전용 (예정)
+│   │   └── shared/          # 🔧 공통 컴포넌트
+│   ├── hooks/               # Custom Hooks
+│   ├── services/            # API 서비스
+│   ├── pages/               # 페이지 컴포넌트
+│   └── styles/              # 전역 스타일
+│
+├── backend/                  # FastAPI Backend
+│   ├── routers/             # API 라우터
+│   │   ├── chat.py          # 채팅 API
+│   │   ├── files.py         # 파일 업로드 API
+│   │   ├── gmail.py         # Gmail 연동 (예정)
+│   │   ├── calendar.py      # 캘린더 연동 (예정)
+│   │   ├── telegram.py      # 텔레그램 연동 (예정)
+│   │   └── drive.py         # Drive 연동 (예정)
+│   ├── services/            # 비즈니스 로직
+│   ├── database/            # SQLite DB
+│   ├── websocket/           # WebSocket 핸들러
+│   └── utils/               # 유틸리티
+│
+├── uploads/                  # 파일 저장소
+├── data/                     # SQLite DB
+├── logs/                     # 로그 파일
+└── docs/                     # 문서
 ```
 
-## 주요 기능
+## 🎯 개발 진행 상황
 
-- 💬 실시간 채팅 인터페이스
-- 🎨 깔끔하고 반응형 디자인
-- ⚡ 빠른 응답 시뮬레이션
-- 🌓 다크모드 지원 (Tailwind CSS)
-- 📱 모바일 친화적 디자인
+### ✅ Phase 1: 채팅 기능 (완료)
+- [x] Backend: FastAPI 서버 + SQLite DB
+- [x] Backend: 채팅 API (대화 생성, 메시지 전송)
+- [x] Backend: WebSocket 실시간 통신
+- [x] Frontend: 채팅 UI (Container, Bubble, Input)
+- [x] Frontend: Custom Hooks (useChat, useConversations)
+- [x] Frontend: 메인 페이지 (사이드바 + 채팅)
 
-## 시작하기
+### 🔄 Phase 2: 파일 처리 (진행 중)
+- [x] Backend: 파일 업로드 API
+- [ ] Backend: Gemini AI 연동
+- [ ] Frontend: 파일 업로드 UI
+- [ ] Frontend: 파일 처리 결과 표시
 
-### 의존성 설치
+### 📋 Phase 3-6: 외부 서비스 (예정)
+- [ ] Gmail API 연동 + 위젯
+- [ ] Google Calendar 연동 + 위젯
+- [ ] Telegram Bot 연동 + 위젯
+- [ ] Google Drive 연동 + 위젯
 
+### 🎨 Phase 7-8: UI 완성
+- [ ] 대시보드 레이아웃
+- [ ] 모바일 최적화 + PWA
+
+## 🚀 시작하기
+
+### Backend 실행
 ```bash
+cd backend
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+python main.py
+```
+→ http://localhost:8000/docs 에서 API 확인
+
+### Frontend 실행
+```bash
+cd frontend
 npm install
-```
-
-### 개발 서버 실행
-
-```bash
 npm run dev
 ```
+→ http://localhost:3000 에서 앱 확인
 
-브라우저에서 [http://localhost:5173](http://localhost:5173)을 열면 확인할 수 있습니다.
+## 📝 주요 기능
 
-### 빌드
+### 1. 채팅
+- ✅ 새 대화 생성
+- ✅ 메시지 전송/수신
+- ✅ 대화 목록 표시
+- ✅ 실시간 통신 (WebSocket)
+- 🔄 AI 응답 (Gemini 연동 예정)
 
-```bash
-npm run build
+### 2. 파일 처리
+- ✅ 기본 업로드 API
+- 🔄 AI 분석 (Gemini 연동 예정)
+- 🔄 결과 표시
+
+### 3. 대시보드 (예정)
+- Gmail 위젯 📧
+- Calendar 위젯 📅
+- Telegram 위젯 💬
+- Drive 위젯 📁
+
+### 4. 모바일 (예정)
+- 반응형 채팅 UI
+- PWA 설정
+- 오프라인 모드
+
+## 🛠️ 개발 가이드라인
+
+### 코드 품질
+- **파일 크기**: 최대 250줄
+- **함수 크기**: 최대 50줄
+- **타입**: TypeScript strict mode
+- **명명**: 명확하고 일관성 있게
+
+### 모듈 분리
+```
+하나의 파일 = 하나의 책임
+├── ChatContainer → 채팅 레이아웃만
+├── MessageBubble → 메시지 표시만
+├── ChatInput → 입력 처리만
+└── useChat → 채팅 로직만
 ```
 
-### 미리보기
+## 📄 라이선스
 
-```bash
-npm run preview
-```
+MIT License
 
-## 컴포넌트 설명
+## 👨‍💻 개발자
 
-### ChatContainer
-- 전체 채팅 UI를 감싸는 컨테이너 컴포넌트
-- 헤더, 메시지 영역, 입력 영역을 포함
+Limone.dev
 
-### MessageBubble
-- 개별 메시지를 표시하는 버블 컴포넌트
-- 사용자/어시스턴트 메시지를 구분하여 스타일 적용
+---
 
-### ChatInput
-- 메시지 입력을 처리하는 컴포넌트
-- 전송 버튼, 음성 입력, 파일 첨부, 알림 버튼 포함
-
-### useChat Hook
-- 채팅 로직을 담당하는 커스텀 훅
-- 메시지 상태 관리 및 API 호출 시뮬레이션
-
-## 커스터마이징
-
-### 색상 테마 변경
-`tailwind.config.js`에서 색상 팔레트를 수정할 수 있습니다.
-
-### 메시지 스타일 수정
-`src/components/chat/MessageBubble.tsx`에서 메시지 버블 스타일을 변경할 수 있습니다.
-
-### 응답 로직 변경
-`src/utils/chatUtils.ts`의 `simulateApiResponse` 함수를 수정하여 실제 API 호출로 교체할 수 있습니다.
-
-## 라이선스
-
-MIT
+**버전**: 1.0.0  
+**최종 업데이트**: 2024-11-07
