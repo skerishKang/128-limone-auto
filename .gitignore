@@ -136,3 +136,8 @@ data/
 uploads/
 *.db
 *.db-journal
+
+# Secret files
+gmail_credentials.json
+gmail_token.pickle
+service_account.json

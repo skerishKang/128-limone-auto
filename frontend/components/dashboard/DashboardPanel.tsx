@@ -82,8 +82,94 @@ export default function DashboardPanel({ columns = 2 }: DashboardPanelProps) {
         </button>
       </div>
 
-      <div className="text-xs text-gray-500 mb-3">
+      <div className="text-xs text-gray-500 mb-2">
         {lastUpdated.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
+      </div>
+
+      {/* 상단 요약 및 상태 카드 - 가로 배치 */}
+      <div className="grid grid-cols-4 gap-2 mb-3">
+        {/* 요약 카드 */}
+        <div className="p-3 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg border border-blue-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-xs font-semibold text-blue-800 mb-2">📊 요약</h3>
+              <div className="space-y-1">
+                <div className="text-xs text-blue-700">
+                  🔔 <span className="font-bold">{stats.gmail + stats.telegram}</span> 알림
+                </div>
+                <div className="text-xs text-blue-700">
+                  📅 <span className="font-bold">{stats.calendar}</span> 일정
+                </div>
+                <div className="text-xs text-blue-700">
+                  📁 <span className="font-bold">{stats.drive}</span> 파일
+                </div>
+                <div className="text-xs text-blue-700">
+                  ✅ <span className="font-bold">{stats.tasks}</span> 할 일
+                </div>
+              </div>
+            </div>
+            <div className="text-2xl">📈</div>
+          </div>
+        </div>
+
+        {/* 빠른 액션 */}
+        <div className="p-3 bg-gradient-to-br from-green-50 to-green-100 rounded-lg border border-green-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-xs font-semibold text-green-800 mb-2">⚡ 빠른 액션</h3>
+              <div className="space-y-1">
+                <button className="w-full text-left text-xs text-green-700 hover:text-green-900 font-medium">
+                  ➕ 새 일정
+                </button>
+                <button className="w-full text-left text-xs text-green-700 hover:text-green-900 font-medium">
+                  📧 새 메일
+                </button>
+                <button className="w-full text-left text-xs text-green-700 hover:text-green-900 font-medium">
+                  📁 업로드
+                </button>
+                <button className="w-full text-left text-xs text-green-700 hover:text-green-900 font-medium">
+                  ✅ 할 일 추가
+                </button>
+              </div>
+            </div>
+            <div className="text-2xl">🎯</div>
+          </div>
+        </div>
+
+        {/* 상태 카드 */}
+        <div className="p-3 bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg border border-purple-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-xs font-semibold text-purple-800 mb-2">ℹ️ 상태</h3>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                  <p className="text-xs text-purple-700 font-medium">AI 온라인</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                  <p className="text-xs text-purple-700 font-medium">Gemini 연결됨</p>
+                </div>
+              </div>
+            </div>
+            <div className="text-2xl">🔔</div>
+          </div>
+        </div>
+
+        {/* 날씨 카드 */}
+        <div className="p-3 bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-lg border border-yellow-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-xs font-semibold text-yellow-800 mb-2">🌤️ 날씨</h3>
+              <div className="space-y-1">
+                <p className="text-xs text-yellow-700 font-medium">서울</p>
+                <p className="text-lg font-bold text-yellow-800">18°C</p>
+                <p className="text-xs text-yellow-700">맑음</p>
+              </div>
+            </div>
+            <div className="text-3xl">☀️</div>
+          </div>
+        </div>
       </div>
 
       {/* 위젯 그리드 - 동적 열 수 */}
@@ -97,69 +183,21 @@ export default function DashboardPanel({ columns = 2 }: DashboardPanelProps) {
           columns === 2 ? 'grid-cols-2' :
           'grid-cols-3'
         }`}>
-          <GmailWidget />
+          {/* 1열: 일정/계획 */}
           <CalendarWidget />
+          <TodoWidget />
+
+          {/* 2열: 실시간 감시 */}
+          <GmailWidget />
           <TelegramWidget />
+
+          {/* 기타 위젯들 */}
           <DriveWidget />
           <WeatherWidget />
           <SystemWidget />
           <NewsWidget />
-          <TodoWidget />
         </div>
       )}
-
-      {/* 요약 카드 */}
-      <div className="mt-3 p-2 bg-gray-50 rounded-lg">
-        <h3 className="text-xs font-semibold text-gray-600 mb-2">📈 요약</h3>
-        <div className="space-y-1">
-          <p className="text-xs text-gray-700">
-            🔔 알림: <span className="font-bold">{stats.gmail + stats.telegram}</span>
-          </p>
-          <p className="text-xs text-gray-700">
-            📅 일정: <span className="font-bold">{stats.calendar}</span>
-          </p>
-          <p className="text-xs text-gray-700">
-            📁 Drive: <span className="font-bold">{stats.drive}</span>
-          </p>
-          <p className="text-xs text-gray-700">
-            ✅ 할 일: <span className="font-bold">{stats.tasks}</span>
-          </p>
-        </div>
-      </div>
-
-      {/* 빠른 액션 */}
-      <div className="mt-3 p-2 bg-gray-50 rounded-lg">
-        <h3 className="text-xs font-semibold text-gray-600 mb-2">🎯 빠른 액션</h3>
-        <div className="space-y-1">
-          <button className="w-full text-left text-xs text-blue-600 hover:underline">
-            ➕ 새 일정
-          </button>
-          <button className="w-full text-left text-xs text-blue-600 hover:underline">
-            📧 새 메일
-          </button>
-          <button className="w-full text-left text-xs text-blue-600 hover:underline">
-            📁 업로드
-          </button>
-          <button className="w-full text-left text-xs text-blue-600 hover:underline">
-            ✅ 할 일 추가
-          </button>
-        </div>
-      </div>
-
-      {/* 상태 */}
-      <div className="mt-3 p-2 bg-gray-50 rounded-lg">
-        <h3 className="text-xs font-semibold text-gray-600 mb-2">ℹ️ 상태</h3>
-        <div className="space-y-1">
-          <div className="flex items-center gap-1">
-            <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
-            <p className="text-xs text-gray-700">AI 온라인</p>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
-            <p className="text-xs text-gray-700">Gemini 연결됨</p>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

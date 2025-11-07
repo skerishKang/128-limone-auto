@@ -3,6 +3,7 @@ import { Message, Conversation } from '../../services/api';
 import MessageBubble from './MessageBubble';
 import ChatInput from './ChatInput';
 import LoadingSpinner from '../shared/LoadingSpinner';
+import EditableTitle from '../shared/EditableTitle';
 import ChatListSidebar from './ChatListSidebar';
 
 interface ChatContainerProps {
@@ -105,9 +106,11 @@ export default function ChatContainer({
         <div className="bg-white border-b p-3 flex items-center justify-between sticky top-0 z-10">
           <div className="flex items-center gap-2">
             {conversationId ? (
-              <h2 className="text-base font-semibold text-gray-800 truncate">
-                {conversations.find(c => c.id === conversationId)?.title || '새 대화'}
-              </h2>
+              <EditableTitle
+                title={conversations.find(c => c.id === conversationId)?.title || '새 대화'}
+                onUpdate={(newTitle) => onUpdateTitle(conversationId, newTitle)}
+                className="text-base"
+              />
             ) : (
               <h2 className="text-base font-semibold text-gray-800">새 대화 시작</h2>
             )}
@@ -127,9 +130,11 @@ export default function ChatContainer({
         <div className="bg-white border-b p-3 flex items-center justify-between sticky top-0 z-10">
           <div className="flex items-center gap-2">
             {conversationId ? (
-              <h2 className="text-base font-semibold text-gray-800 truncate">
-                {conversations.find(c => c.id === conversationId)?.title || '새 대화'}
-              </h2>
+              <EditableTitle
+                title={conversations.find(c => c.id === conversationId)?.title || '새 대화'}
+                onUpdate={(newTitle) => onUpdateTitle(conversationId, newTitle)}
+                className="text-base"
+              />
             ) : (
               <h2 className="text-base font-semibold text-gray-800">새 대화 시작</h2>
             )}
@@ -157,9 +162,11 @@ export default function ChatContainer({
         <div className="bg-white border-b p-3 flex items-center justify-between sticky top-0 z-10">
           <div className="flex items-center gap-2">
             {conversationId ? (
-              <h2 className="text-base font-semibold text-gray-800 truncate">
-                {conversations.find(c => c.id === conversationId)?.title || '새 대화'}
-              </h2>
+              <EditableTitle
+                title={conversations.find(c => c.id === conversationId)?.title || '새 대화'}
+                onUpdate={(newTitle) => onUpdateTitle(conversationId, newTitle)}
+                className="text-base"
+              />
             ) : (
               <h2 className="text-base font-semibold text-gray-800">새 대화 시작</h2>
             )}

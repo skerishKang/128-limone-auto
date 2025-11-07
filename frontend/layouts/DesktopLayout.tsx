@@ -3,6 +3,11 @@ import ChatContainer from '../components/chat/ChatContainer';
 import DashboardPanel from '../components/dashboard/DashboardPanel';
 import { useConversations } from '../hooks/useChat';
 import LoadingSpinner from '../components/shared/LoadingSpinner';
+import Popup from '../components/shared/Popup';
+import GmailWidget from '../components/widgets/GmailWidget';
+import CalendarWidget from '../components/widgets/CalendarWidget';
+import TelegramWidget from '../components/widgets/TelegramWidget';
+import DriveWidget from '../components/widgets/DriveWidget';
 
 export default function DesktopLayout() {
   const { conversations, isLoading, createConversation, updateConversationTitle } = useConversations();
@@ -14,6 +19,7 @@ export default function DesktopLayout() {
   const [chatFlex, setChatFlex] = useState(1); // 채팅 flex 값
   const [layoutMode, setLayoutMode] = useState<'default' | 'chat-focused' | 'chat-only' | 'dashboard-only'>('default'); // 레이아웃 모드
   const [isLayoutMenuOpen, setIsLayoutMenuOpen] = useState(false); // 메뉴 열기/닫기
+  const [activePopup, setActivePopup] = useState<'gmail' | 'calendar' | 'telegram' | 'drive' | null>(null); // 팝업 상태
   const containerRef = useRef<HTMLDivElement>(null);
   const isResizing = useRef(false);
 
@@ -172,7 +178,10 @@ export default function DesktopLayout() {
         <div className="flex flex-col gap-4">
           {/* Gmail */}
           <div className="relative group" title="Gmail (5)">
-            <div className="w-10 h-10 rounded-lg bg-gray-700 hover:bg-yellow-600 flex items-center justify-center cursor-pointer transition-colors">
+            <div
+              onClick={() => setActivePopup('gmail')}
+              className="w-10 h-10 rounded-lg bg-gray-700 hover:bg-yellow-600 flex items-center justify-center cursor-pointer transition-colors"
+            >
               <span className="text-xl">📧</span>
             </div>
             <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
@@ -186,7 +195,10 @@ export default function DesktopLayout() {
 
           {/* Calendar */}
           <div className="relative group" title="Calendar (3)">
-            <div className="w-10 h-10 rounded-lg bg-gray-700 hover:bg-yellow-600 flex items-center justify-center cursor-pointer transition-colors">
+            <div
+              onClick={() => setActivePopup('calendar')}
+              className="w-10 h-10 rounded-lg bg-gray-700 hover:bg-yellow-600 flex items-center justify-center cursor-pointer transition-colors"
+            >
               <span className="text-xl">📅</span>
             </div>
             <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
@@ -199,7 +211,10 @@ export default function DesktopLayout() {
 
           {/* Telegram */}
           <div className="relative group" title="Telegram (8)">
-            <div className="w-10 h-10 rounded-lg bg-gray-700 hover:bg-yellow-600 flex items-center justify-center cursor-pointer transition-colors">
+            <div
+              onClick={() => setActivePopup('telegram')}
+              className="w-10 h-10 rounded-lg bg-gray-700 hover:bg-yellow-600 flex items-center justify-center cursor-pointer transition-colors"
+            >
               <span className="text-xl">💬</span>
             </div>
             <span className="absolute -top-1 -right-1 bg-blue-400 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
@@ -212,7 +227,10 @@ export default function DesktopLayout() {
 
           {/* Drive */}
           <div className="relative group" title="Drive (48)">
-            <div className="w-10 h-10 rounded-lg bg-gray-700 hover:bg-yellow-600 flex items-center justify-center cursor-pointer transition-colors">
+            <div
+              onClick={() => setActivePopup('drive')}
+              className="w-10 h-10 rounded-lg bg-gray-700 hover:bg-yellow-600 flex items-center justify-center cursor-pointer transition-colors"
+            >
               <span className="text-xl">📁</span>
             </div>
             <span className="absolute -top-1 -right-1 bg-green-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold text-xs">
@@ -375,6 +393,53 @@ export default function DesktopLayout() {
         </div>
       </main>
       </div>
+
+      {/* ========================================
+          팝업창들
+      ======================================== */}
+      {/* Gmail 팝업 */}
+      <Popup
+        isOpen={activePopup === 'gmail'}
+        onClose={() => setActivePopup(null)}
+        title="Gmail"
+        width="900px"
+        height="700px"
+      >
+        <GmailWidget />
+      </Popup>
+
+      {/* Calendar 팝업 */}
+      <Popup
+        isOpen={activePopup === 'calendar'}
+        onClose={() => setActivePopup(null)}
+        title="캘린더"
+        width="900px"
+        height="700px"
+      >
+        <CalendarWidget />
+      </Popup>
+
+      {/* Telegram 팝업 */}
+      <Popup
+        isOpen={activePopup === 'telegram'}
+        onClose={() => setActivePopup(null)}
+        title="Telegram"
+        width="1000px"
+        height="700px"
+      >
+        <TelegramWidget />
+      </Popup>
+
+      {/* Drive 팝업 */}
+      <Popup
+        isOpen={activePopup === 'drive'}
+        onClose={() => setActivePopup(null)}
+        title="Google Drive"
+        width="1000px"
+        height="700px"
+      >
+        <DriveWidget />
+      </Popup>
     </div>
   );
 }
