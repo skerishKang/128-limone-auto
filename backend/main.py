@@ -28,7 +28,7 @@ app.add_middleware(
         "http://localhost:3005",
         "http://127.0.0.1:3005",
         "https://limone-auto.netlify.app",
-        "https://d2620b951d48.ngrok-free.app",
+        "https://24ea3763799a.ngrok-free.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],

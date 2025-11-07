@@ -1,2 +1,2 @@
 # ngrok URL 저장
-https://d2620b951d48.ngrok-free.app
+https://24ea3763799a.ngrok-free.app

@@ -34,6 +34,10 @@ export interface Conversation {
   is_archived?: boolean;
 }
 
+export interface CalendarEventsResponse {
+  items: any[];
+}
+
 class ApiService {
   private baseUrl: string;
 
@@ -50,6 +54,7 @@ class ApiService {
     const config: RequestInit = {
       headers: {
         'Content-Type': 'application/json',
+        'ngrok-skip-browser-warning': 'true', // ngrok 경고 페이지 스킵
         ...options.headers,
       },
       ...options,
@@ -134,6 +139,11 @@ class ApiService {
     return this.request(`/api/files/delete/${filename}`, {
       method: 'DELETE',
     });
+  }
+
+  async getCalendarEvents(maxResults: number = 10): Promise<CalendarEventsResponse> {
+    const searchParams = new URLSearchParams({ max_results: String(maxResults) });
+    return this.request<CalendarEventsResponse>(`/api/calendar/events?${searchParams.toString()}`);
   }
 
   // WebSocket connection
