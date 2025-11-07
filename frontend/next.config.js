@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: 'export',  // Netlify 정적 배포를 위한 설정
   reactStrictMode: true,
   swcMinify: true,
 
