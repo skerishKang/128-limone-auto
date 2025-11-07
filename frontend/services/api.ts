@@ -1,6 +1,12 @@
 // Use environment variable for API URL, with fallback to localhost for development
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+// Log the API URL being used
+console.log(`[API] API_BASE_URL = ${API_BASE_URL}`);
+console.log(`[API] Environment variable NEXT_PUBLIC_API_URL = ${process.env.NEXT_PUBLIC_API_URL || 'NOT SET'}`);
+console.log(`[API] Window location = ${typeof window !== 'undefined' ? window.location.href : 'server-side'}`);
+
+
 // Helper function to get WebSocket URL based on environment
 export const getWebSocketUrl = (clientId: string): string => {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -37,7 +43,10 @@ class ApiService {
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
-    
+
+    // Debug logging to check which URL is being used
+    console.log(`[API] Requesting: ${url}`);
+
     const config: RequestInit = {
       headers: {
         'Content-Type': 'application/json',
@@ -48,15 +57,30 @@ class ApiService {
 
     try {
       const response = await fetch(url, config);
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+
+      // Check if response is HTML (error page) instead of JSON
+      const contentType = response.headers.get('content-type');
+      const text = await response.text();
+
+      if (contentType && contentType.includes('text/html')) {
+        console.error(`[API] Received HTML instead of JSON from ${url}`);
+        console.error(`[API] HTML Response: ${text.substring(0, 200)}...`);
+        throw new Error(`API returned HTML page instead of JSON. This usually means the API URL is incorrect or the server is not running. URL: ${url}`);
       }
 
-      return await response.json();
+      if (!response.ok) {
+        // Try to parse as JSON for error details
+        try {
+          const errorData = JSON.parse(text);
+          throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+        } catch {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+      }
+
+      return JSON.parse(text);
     } catch (error) {
-      console.error(`API request failed: ${endpoint}`, error);
+      console.error(`[API] Request failed: ${endpoint}`, error);
       throw error;
     }
   }

@@ -63,7 +63,7 @@ def init_db():
             )
         """)
 
-        print("✅ Database initialized successfully")
+        print("[OK] Database initialized successfully")
 
 @contextmanager
 def get_db():
