@@ -2,14 +2,14 @@
   "pages\\index.tsx -> ../layouts/DesktopLayout": {
     "id": 3542,
     "files": [
-      "static/chunks/790.59e12a7c14b4a4e3.js",
-      "static/chunks/542.46ae9c3dc47e8d3f.js"
+      "static/chunks/790.500749921551a531.js",
+      "static/chunks/542.ec4b11d382672659.js"
     ]
   },
   "pages\\index.tsx -> ../layouts/MobileLayout": {
     "id": 2985,
     "files": [
-      "static/chunks/790.59e12a7c14b4a4e3.js",
+      "static/chunks/790.500749921551a531.js",
       "static/chunks/985.8beb907fe8ea91dd.js"
     ]
   }

@@ -187,8 +187,8 @@ export default function DesktopLayout() {
             <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
               5
             </span>
-            {/* 툴팁 */}
-            <div className="absolute left-12 top-0 bg-gray-900 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+            {/* 툴팁 - hover시에만 표시 */}
+            <div className="absolute left-12 top-0 bg-gray-900 text-white text-xs px-2 py-1 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50">
               Gmail
             </div>
           </div>
@@ -204,7 +204,8 @@ export default function DesktopLayout() {
             <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
               3
             </span>
-            <div className="absolute left-12 top-0 bg-gray-900 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+            {/* 툴팁 - hover시에만 표시 */}
+            <div className="absolute left-12 top-0 bg-gray-900 text-white text-xs px-2 py-1 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50">
               Calendar
             </div>
           </div>
@@ -220,7 +221,8 @@ export default function DesktopLayout() {
             <span className="absolute -top-1 -right-1 bg-blue-400 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
               8
             </span>
-            <div className="absolute left-12 top-0 bg-gray-900 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+            {/* 툴팁 - hover시에만 표시 */}
+            <div className="absolute left-12 top-0 bg-gray-900 text-white text-xs px-2 py-1 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50">
               Telegram
             </div>
           </div>
@@ -236,7 +238,8 @@ export default function DesktopLayout() {
             <span className="absolute -top-1 -right-1 bg-green-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold text-xs">
               48
             </span>
-            <div className="absolute left-12 top-0 bg-gray-900 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+            {/* 툴팁 - hover시에만 표시 */}
+            <div className="absolute left-12 top-0 bg-gray-900 text-white text-xs px-2 py-1 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50">
               Drive
             </div>
           </div>
@@ -246,7 +249,8 @@ export default function DesktopLayout() {
             <div className="w-10 h-10 rounded-lg bg-gray-700 hover:bg-yellow-600 flex items-center justify-center cursor-pointer transition-colors">
               <span className="text-xl">🌤️</span>
             </div>
-            <div className="absolute left-12 top-0 bg-gray-900 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+            {/* 툴팁 - hover시에만 표시 */}
+            <div className="absolute left-12 top-0 bg-gray-900 text-white text-xs px-2 py-1 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50">
               Weather
             </div>
           </div>
@@ -256,7 +260,8 @@ export default function DesktopLayout() {
             <div className="w-10 h-10 rounded-lg bg-gray-700 hover:bg-yellow-600 flex items-center justify-center cursor-pointer transition-colors">
               <span className="text-xl">📰</span>
             </div>
-            <div className="absolute left-12 top-0 bg-gray-900 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+            {/* 툴팁 - hover시에만 표시 */}
+            <div className="absolute left-12 top-0 bg-gray-900 text-white text-xs px-2 py-1 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50">
               News
             </div>
           </div>
@@ -266,7 +271,8 @@ export default function DesktopLayout() {
             <div className="w-10 h-10 rounded-lg bg-gray-700 hover:bg-yellow-600 flex items-center justify-center cursor-pointer transition-colors">
               <span className="text-xl">🖥️</span>
             </div>
-            <div className="absolute left-12 top-0 bg-gray-900 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+            {/* 툴팁 - hover시에만 표시 */}
+            <div className="absolute left-12 top-0 bg-gray-900 text-white text-xs px-2 py-1 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50">
               System
             </div>
           </div>

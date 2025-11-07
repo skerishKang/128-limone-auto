@@ -19,6 +19,10 @@ interface DashboardStats {
   telegram: number;
   drive: number;
   tasks: number;
+  weatherTemp: string;
+  weatherCondition: string;
+  aiOnline: boolean;
+  geminiConnected: boolean;
 }
 
 export default function DashboardPanel({ columns = 2 }: DashboardPanelProps) {
@@ -27,7 +31,11 @@ export default function DashboardPanel({ columns = 2 }: DashboardPanelProps) {
     calendar: 0,
     telegram: 0,
     drive: 0,
-    tasks: 0
+    tasks: 0,
+    weatherTemp: '18°C',
+    weatherCondition: '맑음',
+    aiOnline: true,
+    geminiConnected: true
   });
   const [isLoading, setIsLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
@@ -36,15 +44,26 @@ export default function DashboardPanel({ columns = 2 }: DashboardPanelProps) {
     try {
       setIsLoading(true);
 
-      // 더미 데이터 로드
+      // 더미 데이터 로드 (실제 API 연동 전까지)
       await new Promise(resolve => setTimeout(resolve, 500)); // 로딩 시뮬레이션
 
+      // 무작위 데이터로 업데이트 (새로고침 효과를 위한)
+      const randomGmail = Math.floor(Math.random() * 20) + 1;
+      const randomCalendar = Math.floor(Math.random() * 10) + 1;
+      const randomTelegram = Math.floor(Math.random() * 15) + 1;
+      const randomDrive = Math.floor(Math.random() * 100) + 10;
+      const randomTasks = Math.floor(Math.random() * 8) + 1;
+
       setStats({
-        gmail: 5,
-        calendar: 3,
-        telegram: 8,
-        drive: 48,
-        tasks: 3
+        gmail: randomGmail,
+        calendar: randomCalendar,
+        telegram: randomTelegram,
+        drive: randomDrive,
+        tasks: randomTasks,
+        weatherTemp: `${Math.floor(Math.random() * 15) + 10}°C`,
+        weatherCondition: ['맑음', '구름', '비', '눈'][Math.floor(Math.random() * 4)],
+        aiOnline: Math.random() > 0.1, // 90% 확률로 온라인
+        geminiConnected: Math.random() > 0.05 // 95% 확률로 연결됨
       });
 
       setLastUpdated(new Date());
@@ -143,12 +162,16 @@ export default function DashboardPanel({ columns = 2 }: DashboardPanelProps) {
               <h3 className="text-xs font-semibold text-purple-800 mb-2">ℹ️ 상태</h3>
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                  <p className="text-xs text-purple-700 font-medium">AI 온라인</p>
+                  <div className={`w-2 h-2 rounded-full ${stats.aiOnline ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
+                  <p className="text-xs text-purple-700 font-medium">
+                    {stats.aiOnline ? 'AI 온라인' : 'AI 오프라인'}
+                  </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                  <p className="text-xs text-purple-700 font-medium">Gemini 연결됨</p>
+                  <div className={`w-2 h-2 rounded-full ${stats.geminiConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
+                  <p className="text-xs text-purple-700 font-medium">
+                    {stats.geminiConnected ? 'Gemini 연결됨' : 'Gemini 연결 안됨'}
+                  </p>
                 </div>
               </div>
             </div>
@@ -163,11 +186,15 @@ export default function DashboardPanel({ columns = 2 }: DashboardPanelProps) {
               <h3 className="text-xs font-semibold text-yellow-800 mb-2">🌤️ 날씨</h3>
               <div className="space-y-1">
                 <p className="text-xs text-yellow-700 font-medium">서울</p>
-                <p className="text-lg font-bold text-yellow-800">18°C</p>
-                <p className="text-xs text-yellow-700">맑음</p>
+                <p className="text-lg font-bold text-yellow-800">{stats.weatherTemp}</p>
+                <p className="text-xs text-yellow-700">{stats.weatherCondition}</p>
               </div>
             </div>
-            <div className="text-3xl">☀️</div>
+            <div className="text-3xl">
+              {stats.weatherCondition === '맑음' ? '☀️' :
+               stats.weatherCondition === '구름' ? '☁️' :
+               stats.weatherCondition === '비' ? '🌧️' : '❄️'}
+            </div>
           </div>
         </div>
       </div>
@@ -183,13 +210,13 @@ export default function DashboardPanel({ columns = 2 }: DashboardPanelProps) {
           columns === 2 ? 'grid-cols-2' :
           'grid-cols-3'
         }`}>
-          {/* 1열: 일정/계획 */}
+          {/* 1열(왼쪽): 일정/계획 */}
           <CalendarWidget />
           <TodoWidget />
 
-          {/* 2열: 실시간 감시 */}
-          <GmailWidget />
+          {/* 2열(오른쪽): 실시간 감시 */}
           <TelegramWidget />
+          <GmailWidget />
 
           {/* 기타 위젯들 */}
           <DriveWidget />
