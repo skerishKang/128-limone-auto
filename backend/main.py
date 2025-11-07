@@ -10,6 +10,11 @@ from services.calendar_service import (
     CalendarAuthorizationError,
     CalendarConfigurationError
 )
+from services.drive_service import (
+    DriveService,
+    DriveAuthorizationError,
+    DriveConfigurationError
+)
 
 app = FastAPI(
     title="Limone Auto API",
@@ -49,6 +54,9 @@ app.include_router(drive.router, prefix="/api/drive", tags=["Drive"])
 # WebSocket 연결 관리자
 from websocket.chat_handler import ConnectionManager
 manager = ConnectionManager()
+
+# Drive 서비스 인스턴스
+drive_service = DriveService()
 
 @app.on_event("startup")
 async def startup():
@@ -111,6 +119,33 @@ async def calendar_oauth_callback_root(
         return RedirectResponse(url=redirect_url, status_code=status.HTTP_302_FOUND)
 
     return {"message": "Google Calendar 인증이 완료되었습니다."}
+
+
+@app.get("/auth/google/drive/callback", summary="Google Drive OAuth 콜백")
+async def drive_oauth_callback_root(
+    code: str | None = Query(default=None),
+    state: str | None = Query(default=None),
+    error: str | None = Query(default=None)
+):
+    if error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Google OAuth 오류: {error}")
+
+    if not code:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="OAuth code가 누락되었습니다.")
+
+    try:
+        drive_service.exchange_code_for_token(code=code, state=state)
+    except DriveConfigurationError as exc:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
+    except DriveAuthorizationError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    redirect_target = drive_service.get_success_redirect()
+    if redirect_target:
+        redirect_url = f"{redirect_target.rstrip('/')}/?drive_connected=true"
+        return RedirectResponse(url=redirect_url, status_code=status.HTTP_302_FOUND)
+
+    return {"message": "Google Drive 인증이 완료되었습니다."}
 
 if __name__ == "__main__":
     uvicorn.run(
