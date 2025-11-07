@@ -156,19 +156,26 @@ class ApiService {
   }
 
   // Drive API
-  async getDriveAuthStatus(): Promise<any> {
+  async getDriveAuthStatus(): Promise<{ authorized: boolean }> {
     return this.request('/api/drive/status');
   }
 
-  async getDriveAuthUrl(): Promise<{ url: string }> {
-    return this.request('/api/drive/auth/google/drive/start');
+  async getDriveAuthUrl(options?: { autoRedirect?: boolean }): Promise<string> {
+    if (options?.autoRedirect) {
+      return `${this.baseUrl}/api/drive/auth/google/drive/start?auto_redirect=true`;
+    }
+    const data = await this.request<{ authorization_url: string }>(
+      '/api/drive/auth/google/drive/start'
+    );
+    return data.authorization_url;
   }
 
   async getDriveFiles(): Promise<any[]> {
-    return this.request('/api/drive/files');
+    const data = await this.request<{ files: any[] }>('/api/drive/files');
+    return data.files ?? [];
   }
 
-  async getDriveQuota(): Promise<any> {
+  async getDriveQuota(): Promise<{ limit: number; usage: number; usageInDrive: number; usageInDriveTrash: number }> {
     return this.request('/api/drive/quota');
   }
 
@@ -186,6 +193,48 @@ class ApiService {
   async deleteDriveFile(fileId: string): Promise<any> {
     return this.request(`/api/drive/files/${fileId}`, {
       method: 'DELETE',
+    });
+  }
+
+  // Gmail API
+  async getGmailStatus(): Promise<{ authorized: boolean; scopes: string[] }> {
+    return this.request('/api/gmail/');
+  }
+
+  async getGmailAuthUrl(options?: { autoRedirect?: boolean }): Promise<string> {
+    if (options?.autoRedirect) {
+      return `${this.baseUrl}/api/gmail/auth/google/gmail/start?auto_redirect=true`;
+    }
+    const data = await this.request<{ authorization_url: string }>(
+      '/api/gmail/auth/google/gmail/start'
+    );
+    return data.authorization_url;
+  }
+
+  async getGmailMessages(params?: { maxResults?: number; labelId?: string; query?: string }): Promise<any[]> {
+    const searchParams = new URLSearchParams();
+    if (params?.maxResults) {
+      searchParams.set('max_results', String(params.maxResults));
+    }
+    if (params?.labelId) {
+      searchParams.set('label_id', params.labelId);
+    }
+    if (params?.query) {
+      searchParams.set('query', params.query);
+    }
+    const qs = searchParams.toString();
+    const endpoint = qs ? `/api/gmail/messages?${qs}` : '/api/gmail/messages';
+    return this.request(endpoint);
+  }
+
+  async getGmailUnreadCount(): Promise<{ unread: number }> {
+    return this.request('/api/gmail/messages/unread-count');
+  }
+
+  async sendGmailMessage(payload: { to: string[]; subject: string; body: string; cc?: string[]; bcc?: string[] }): Promise<any> {
+    return this.request('/api/gmail/messages/send', {
+      method: 'POST',
+      body: JSON.stringify(payload),
     });
   }
 
