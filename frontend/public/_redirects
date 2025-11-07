@@ -1,0 +1,11 @@
+# Netlify redirects for Next.js static export
+
+# Serve Next.js static assets
+/_next/static/*  /_next/static/:splat  200
+
+# Serve pages
+/*    /index.html   200
+
+# API routes (if any)
+#/api/*  /api/:splat  200
+<!-- Deployment trigger -->
