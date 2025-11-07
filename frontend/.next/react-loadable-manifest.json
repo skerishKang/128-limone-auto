@@ -1,16 +1,14 @@
 {
   "pages\\index.tsx -> ../layouts/DesktopLayout": {
-    "id": 3542,
+    "id": "pages\\index.tsx -> ../layouts/DesktopLayout",
     "files": [
-      "static/chunks/790.37e1f6fbab8a9674.js",
-      "static/chunks/542.55e96e6128c0e50d.js"
+      "static/chunks/layouts_DesktopLayout_tsx.js"
     ]
   },
   "pages\\index.tsx -> ../layouts/MobileLayout": {
-    "id": 2985,
+    "id": "pages\\index.tsx -> ../layouts/MobileLayout",
     "files": [
-      "static/chunks/790.37e1f6fbab8a9674.js",
-      "static/chunks/985.8beb907fe8ea91dd.js"
+      "static/chunks/layouts_MobileLayout_tsx.js"
     ]
   }
 }

@@ -101,96 +101,96 @@ export default function DashboardPanel({ columns = 2 }: DashboardPanelProps) {
         </button>
       </div>
 
-      <div className="text-xs text-gray-500 mb-2">
+      <div className="text-xs text-gray-500 mb-3">
         {lastUpdated.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
       </div>
 
-      {/* 상단 요약 및 상태 카드 - 가로 배치 */}
-      <div className="grid grid-cols-4 gap-2 mb-3">
+      {/* 상단 요약 및 상태 카드 - 위젯 스타일과 통일 */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-4">
         {/* 요약 카드 */}
-        <div className="p-3 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg border border-blue-200">
+        <div className="bg-white rounded-xl p-4 border border-gray-100 hover:shadow-lg transition-shadow border-l-4 border-blue-500">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-xs font-semibold text-blue-800 mb-2">📊 요약</h3>
-              <div className="space-y-1">
-                <div className="text-xs text-blue-700">
-                  🔔 <span className="font-bold">{stats.gmail + stats.telegram}</span> 알림
-                </div>
-                <div className="text-xs text-blue-700">
-                  📅 <span className="font-bold">{stats.calendar}</span> 일정
-                </div>
-                <div className="text-xs text-blue-700">
-                  📁 <span className="font-bold">{stats.drive}</span> 파일
-                </div>
-                <div className="text-xs text-blue-700">
-                  ✅ <span className="font-bold">{stats.tasks}</span> 할 일
-                </div>
-              </div>
+              <h3 className="text-sm font-semibold text-gray-800 mb-2 flex items-center gap-2">
+                📊 <span>요약</span>
+              </h3>
+              <ul className="space-y-1 text-xs text-gray-600">
+                <li>🔔 <span className="font-semibold text-gray-900">{stats.gmail + stats.telegram}</span> 알림</li>
+                <li>📅 <span className="font-semibold text-gray-900">{stats.calendar}</span> 일정</li>
+                <li>📁 <span className="font-semibold text-gray-900">{stats.drive}</span> 파일</li>
+                <li>✅ <span className="font-semibold text-gray-900">{stats.tasks}</span> 할 일</li>
+              </ul>
             </div>
-            <div className="text-2xl">📈</div>
+            <div className="text-3xl">📈</div>
           </div>
         </div>
 
         {/* 빠른 액션 */}
-        <div className="p-3 bg-gradient-to-br from-green-50 to-green-100 rounded-lg border border-green-200">
+        <div className="bg-white rounded-xl p-4 border border-gray-100 hover:shadow-lg transition-shadow border-l-4 border-green-500">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-xs font-semibold text-green-800 mb-2">⚡ 빠른 액션</h3>
+              <h3 className="text-sm font-semibold text-gray-800 mb-2 flex items-center gap-2">
+                ⚡ <span>빠른 액션</span>
+              </h3>
               <div className="space-y-1">
-                <button className="w-full text-left text-xs text-green-700 hover:text-green-900 font-medium">
+                <button className="w-full text-left text-xs text-gray-600 hover:text-gray-900 font-medium">
                   ➕ 새 일정
                 </button>
-                <button className="w-full text-left text-xs text-green-700 hover:text-green-900 font-medium">
+                <button className="w-full text-left text-xs text-gray-600 hover:text-gray-900 font-medium">
                   📧 새 메일
                 </button>
-                <button className="w-full text-left text-xs text-green-700 hover:text-green-900 font-medium">
+                <button className="w-full text-left text-xs text-gray-600 hover:text-gray-900 font-medium">
                   📁 업로드
                 </button>
-                <button className="w-full text-left text-xs text-green-700 hover:text-green-900 font-medium">
+                <button className="w-full text-left text-xs text-gray-600 hover:text-gray-900 font-medium">
                   ✅ 할 일 추가
                 </button>
               </div>
             </div>
-            <div className="text-2xl">🎯</div>
+            <div className="text-3xl">🎯</div>
           </div>
         </div>
 
         {/* 상태 카드 */}
-        <div className="p-3 bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg border border-purple-200">
+        <div className="bg-white rounded-xl p-4 border border-gray-100 hover:shadow-lg transition-shadow border-l-4 border-purple-500">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-xs font-semibold text-purple-800 mb-2">ℹ️ 상태</h3>
-              <div className="space-y-1">
+              <h3 className="text-sm font-semibold text-gray-800 mb-2 flex items-center gap-2">
+                ℹ️ <span>상태</span>
+              </h3>
+              <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <div className={`w-2 h-2 rounded-full ${stats.aiOnline ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
-                  <p className="text-xs text-purple-700 font-medium">
+                  <div className={`w-2.5 h-2.5 rounded-full ${stats.aiOnline ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
+                  <p className="text-xs text-gray-600 font-medium">
                     {stats.aiOnline ? 'AI 온라인' : 'AI 오프라인'}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className={`w-2 h-2 rounded-full ${stats.geminiConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
-                  <p className="text-xs text-purple-700 font-medium">
+                  <div className={`w-2.5 h-2.5 rounded-full ${stats.geminiConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
+                  <p className="text-xs text-gray-600 font-medium">
                     {stats.geminiConnected ? 'Gemini 연결됨' : 'Gemini 연결 안됨'}
                   </p>
                 </div>
               </div>
             </div>
-            <div className="text-2xl">🔔</div>
+            <div className="text-3xl">🔔</div>
           </div>
         </div>
 
         {/* 날씨 카드 */}
-        <div className="p-3 bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-lg border border-yellow-200">
+        <div className="bg-white rounded-xl p-4 border border-gray-100 hover:shadow-lg transition-shadow border-l-4 border-yellow-400">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-xs font-semibold text-yellow-800 mb-2">🌤️ 날씨</h3>
-              <div className="space-y-1">
-                <p className="text-xs text-yellow-700 font-medium">서울</p>
-                <p className="text-lg font-bold text-yellow-800">{stats.weatherTemp}</p>
-                <p className="text-xs text-yellow-700">{stats.weatherCondition}</p>
+              <h3 className="text-sm font-semibold text-gray-800 mb-2 flex items-center gap-2">
+                🌤️ <span>날씨</span>
+              </h3>
+              <div className="space-y-1 text-xs text-gray-600">
+                <p className="font-medium text-gray-700">서울</p>
+                <p className="text-lg font-bold text-gray-900">{stats.weatherTemp}</p>
+                <p>{stats.weatherCondition}</p>
               </div>
             </div>
-            <div className="text-3xl">
+            <div className="text-4xl">
               {stats.weatherCondition === '맑음' ? '☀️' :
                stats.weatherCondition === '구름' ? '☁️' :
                stats.weatherCondition === '비' ? '🌧️' : '❄️'}
@@ -212,10 +212,10 @@ export default function DashboardPanel({ columns = 2 }: DashboardPanelProps) {
         }`}>
           {/* 1열(왼쪽): 일정/계획 */}
           <CalendarWidget />
-          <TodoWidget />
+          <TelegramWidget />
 
           {/* 2열(오른쪽): 실시간 감시 */}
-          <TelegramWidget />
+          <TodoWidget />
           <GmailWidget />
 
           {/* 기타 위젯들 */}

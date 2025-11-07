@@ -104,11 +104,12 @@ export default function DesktopLayout() {
                 onClick={() => setIsLayoutMenuOpen(!isLayoutMenuOpen)}
                 className="
                   text-xs px-4 py-1.5
-                  w-56
+                  w-28
                   bg-yellow-400 hover:bg-yellow-500
                   text-gray-900 rounded-lg
                   transition-colors
                   flex items-center justify-center gap-2 font-medium
+                  truncate
                 "
               >
                 🔄 {layoutMode === 'default' ? '기본모양' : layoutMode === 'chat-focused' ? '채팅확대' : layoutMode === 'chat-only' ? '채팅창만' : '대시보드'}
