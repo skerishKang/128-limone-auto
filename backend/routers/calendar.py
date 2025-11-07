@@ -23,9 +23,13 @@ async def calendar_root():
 
 
 @router.get("/auth/google/calendar/start", summary="Google OAuth 인증 URL 생성")
-async def start_calendar_oauth():
+async def start_calendar_oauth(
+    auto_redirect: bool = Query(default=False, description="true로 지정하면 바로 Google OAuth 페이지로 리다이렉트")
+):
     try:
         auth_payload = calendar_service.generate_auth_url()
+        if auto_redirect:
+            return RedirectResponse(url=auth_payload["authorization_url"], status_code=status.HTTP_302_FOUND)
     except CalendarConfigurationError as exc:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
     return auth_payload

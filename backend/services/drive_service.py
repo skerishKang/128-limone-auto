@@ -288,8 +288,7 @@ class DriveService:
             str(self.client_secret_path),
             scopes=self.scopes,
             redirect_uri=self.redirect_uri,
-            state=state,
-            access_type="online"  # Test 사용자로 등록하지 않고도 작동하도록 online으로 설정
+            state=state
         )
 
     def _store_credentials(self, credentials: Credentials) -> None:

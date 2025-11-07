@@ -130,11 +130,7 @@ class CalendarService:
         """OAuth 인증 URL 생성."""
 
         flow = self._build_flow()
-        authorization_url, state = flow.authorization_url(
-            access_type="offline",
-            include_granted_scopes="true",
-            prompt="consent"
-        )
+        authorization_url, state = flow.authorization_url()
         AUTH_STATE_STORE.add(state)
         return {"authorization_url": authorization_url, "state": state}
 
