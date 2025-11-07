@@ -12,6 +12,8 @@ export default function DesktopLayout() {
   const [dashboardColumns, setDashboardColumns] = useState<1 | 2 | 3>(2); // 대시보드 열 수
   const [dashboardFlex, setDashboardFlex] = useState(1); // 대시보드 flex 값
   const [chatFlex, setChatFlex] = useState(1); // 채팅 flex 값
+  const [layoutMode, setLayoutMode] = useState<'default' | 'chat-focused' | 'chat-only' | 'dashboard-only'>('default'); // 레이아웃 모드
+  const [isLayoutMenuOpen, setIsLayoutMenuOpen] = useState(false); // 메뉴 열기/닫기
   const containerRef = useRef<HTMLDivElement>(null);
   const isResizing = useRef(false);
 
@@ -34,74 +36,131 @@ export default function DesktopLayout() {
     document.body.style.userSelect = 'none';
   };
 
-  // 대시보드/채팅 flex 비율 업데이트
-  const updateFlexRatios = (width: number) => {
-    if (!containerRef.current) return;
-    const containerRect = containerRef.current.getBoundingClientRect();
-    const availableWidth = containerRect.width - 64 - 1; // Activity Bar + Resizer 제외
-    const chatRatio = Math.max(0, Math.min(3, width / availableWidth));
-    const dashboardRatio = Math.max(0, Math.min(3, (availableWidth - width) / availableWidth));
+  // 레이아웃 모드 변경
+  const changeLayoutMode = (mode: 'default' | 'chat-focused' | 'chat-only' | 'dashboard-only') => {
+    setLayoutMode(mode);
+    setIsLayoutMenuOpen(false);
 
-    // chatRatio에 따라 열 수 변경
-    if (chatRatio < 0.2) {
-      setDashboardColumns(3);
-      setDashboardFlex(3);
-      setChatFlex(0);
-    } else if (chatRatio < 0.4) {
-      setDashboardColumns(1);
-      setDashboardFlex(1);
-      setChatFlex(2);
-    } else if (chatRatio < 0.6) {
-      setDashboardColumns(2);
-      setDashboardFlex(1);
-      setChatFlex(1);
-    } else if (chatRatio < 0.8) {
-      setDashboardColumns(2);
-      setDashboardFlex(2);
-      setChatFlex(1);
-    } else {
-      setDashboardColumns(3);
-      setDashboardFlex(1);
-      setChatFlex(3);
+    switch (mode) {
+      case 'default':
+        setDashboardColumns(2);
+        setDashboardFlex(1);  // 대시보드가 전체 남은 공간 차지
+        setChatFlex(0);       // 채팅은 flexGrow 사용 안함
+        setChatWidth(375);    // 모바일 해상도(375px) 고정
+        break;
+      case 'chat-focused':
+        setDashboardColumns(1);
+        setDashboardFlex(1);
+        setChatFlex(0);
+        setChatWidth(375);
+        break;
+      case 'chat-only':
+        setDashboardColumns(3);
+        setDashboardFlex(0);
+        setChatFlex(0);
+        setChatWidth(0);  // 전체 화면 사용
+        break;
+      case 'dashboard-only':
+        setDashboardColumns(1);
+        setDashboardFlex(1);
+        setChatFlex(0);
+        setChatWidth(0);
+        break;
     }
   };
 
   useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isResizing.current || !containerRef.current) return;
-
-      const containerRect = containerRef.current.getBoundingClientRect();
-      const newChatWidth = containerRect.width - (e.clientX - containerRect.left);
-
-      // 최소/최대 너비 제한 (300px로 더 작게)
-      const minChatWidth = 0; // 0이면 flex-1
-      const maxChatWidth = 800;
-      const constrainedWidth = Math.min(Math.max(newChatWidth, minChatWidth), maxChatWidth);
-
-      setChatWidth(constrainedWidth);
-      updateFlexRatios(constrainedWidth);
-    };
-
-    const handleMouseUp = () => {
-      isResizing.current = false;
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
+    // 첫 로드 시 2:1 모드 (기본값)
+    changeLayoutMode('default');
   }, []);
 
   return (
-    <div ref={containerRef} className="h-screen flex bg-gray-50 overflow-hidden">
+    <div ref={containerRef} className="h-screen flex flex-col bg-gray-50 overflow-hidden">
       {/* ========================================
-          1. 가장 왼쪽: 아이콘만 있는 사이드메뉴 (VSCode Activity Bar)
+          0. 공통 헤더 ( Atas ) - 전체 너비
       ======================================== */}
+      <div className="h-12 bg-white border-b border-gray-200 flex-shrink-0 relative" style={{ zIndex: 50 }}>
+        {/* Activity Bar width (64px) 만큼 padding을 주고 시작 */}
+        <div className="pl-16 pr-4 h-full flex items-center justify-between">
+          {/* 좌측: 로고 */}
+          <div className="flex items-center gap-3">
+            <h1 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+              🍋 Limone Auto
+            </h1>
+            <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">v2.0</span>
+          </div>
+
+          {/* 우측: 사용자 메뉴 + 레이아웃 드롭다운 */}
+          <div className="flex items-center gap-3">
+            {/* 레이아웃 드롭다운 */}
+            <div className="relative">
+              <button
+                onClick={() => setIsLayoutMenuOpen(!isLayoutMenuOpen)}
+                className="
+                  text-xs px-4 py-1.5
+                  w-56
+                  bg-yellow-400 hover:bg-yellow-500
+                  text-gray-900 rounded-lg
+                  transition-colors
+                  flex items-center justify-center gap-2 font-medium
+                "
+              >
+                🔄 {layoutMode === 'default' ? '기본모양' : layoutMode === 'chat-focused' ? '채팅확대' : layoutMode === 'chat-only' ? '채팅창만' : '대시보드'}
+              </button>
+              {isLayoutMenuOpen && (
+                <div className="absolute right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl z-[9999] w-56">
+                  <button
+                    onClick={() => changeLayoutMode('default')}
+                    className="w-full text-center px-4 py-2 text-xs hover:bg-gray-100 rounded-t-lg"
+                  >
+                    기본모양
+                  </button>
+                  <button
+                    onClick={() => changeLayoutMode('chat-focused')}
+                    className="w-full text-center px-4 py-2 text-xs hover:bg-gray-100"
+                  >
+                    채팅확대
+                  </button>
+                  <button
+                    onClick={() => changeLayoutMode('chat-only')}
+                    className="w-full text-center px-4 py-2 text-xs hover:bg-gray-100"
+                  >
+                    채팅창만
+                  </button>
+                  <button
+                    onClick={() => changeLayoutMode('dashboard-only')}
+                    className="w-full text-center px-4 py-2 text-xs hover:bg-gray-100 rounded-b-lg"
+                  >
+                    대시보드
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* 구분선 */}
+            <div className="w-px h-6 bg-gray-300"></div>
+
+            {/* 사용자 메뉴 */}
+            <div className="flex items-center gap-2">
+              <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors" title="설정">
+                ⚙️
+              </button>
+              <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors" title="프로필">
+                👤
+              </button>
+              <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors" title="로그아웃">
+                🚪
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 메인 레이아웃 (헤더 제외) */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* ========================================
+            1. 가장 왼쪽: 아이콘만 있는 사이드메뉴 (VSCode Activity Bar)
+        ======================================== */}
       <aside className="w-16 bg-gray-800 border-r border-gray-700 flex flex-col items-center py-3 gap-3 flex-shrink-0">
         {/*Limone 로고 */}
         <div className="text-2xl" title="Limone Auto">🍋</div>
@@ -239,16 +298,16 @@ export default function DesktopLayout() {
       ======================================== */}
       <div
         className="bg-white border-r flex flex-col shadow-sm transition-all duration-200 overflow-hidden min-w-0"
-        style={{ flexGrow: dashboardFlex }}
+        style={{
+          flexGrow: dashboardFlex,
+          display: dashboardFlex === 0 ? 'none' : 'flex' // Dashboard flex가 0이면 숨김
+        }}
       >
-        {/* 헤더 */}
+        {/* 헤더 (공통 헤더에서 제거) */}
         <div className="p-3 border-b bg-white sticky top-0 z-10">
-          <div className="flex items-center justify-between">
-            <h1 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-              📊 대시보드
-            </h1>
-            <span className="text-xs text-gray-500">v2.0</span>
-          </div>
+          <h1 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+            📊 대시보드
+          </h1>
         </div>
 
         {/* 대시보드 위젯들 - 독립 스크롤 */}
@@ -258,40 +317,23 @@ export default function DesktopLayout() {
       </div>
 
       {/* ========================================
-          Resizer (드래그 바)
+          Resizer (드래그 바 - 제거됨)
       ======================================== */}
       <div
-        onMouseDown={handleMouseDown}
-        className="w-1 bg-gray-200 hover:bg-yellow-400 cursor-col-resize transition-colors duration-150 flex-shrink-0 z-10"
-        title={`드래그로 크기 조절 (대시보드 ${dashboardColumns}열, 대시보드 flex:${dashboardFlex}, 채팅 flex:${chatFlex})`}
+        className="w-1 bg-gray-100 transition-colors duration-150 flex-shrink-0 z-10"
       />
 
       {/* ========================================
-          3. 우측: 채팅창 (弹性 크기 - flex 값 동적 변경)
+          3. 우측: 채팅창 (고정 너비 - 모바일 해상도 375px)
       ======================================== */}
       <main
-        className="flex flex-col bg-white shadow-sm flex-1 min-w-0"
+        className="flex flex-col bg-white shadow-sm min-w-0"
         style={{
-          width: chatWidth > 0 ? `${chatWidth}px` : undefined,
-          flexGrow: chatFlex
+          flexGrow: chatWidth === 0 ? 1 : 0,  // chatWidth가 0이면 전체, 아니면 고정
+          width: chatWidth > 0 ? `${chatWidth}px` : 'auto',  // 고정 너비 적용
+          display: (chatFlex === 0 && chatWidth === 0) ? 'none' : 'flex'  // 둘 다 0이면 숨김
         }}
       >
-        {/* 상단 바 */}
-        <div className="bg-white border-b p-3 flex items-center justify-between sticky top-0 z-10">
-          <div className="flex items-center gap-2">
-            <h2 className="text-base font-semibold text-gray-800">💬 채팅</h2>
-            {currentConversationId && (
-              <span className="text-xs text-gray-500">
-                ID: {currentConversationId}
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-            <span className="text-xs text-gray-600">AI 연결됨</span>
-          </div>
-        </div>
-
         {/* 채팅 컨테이너 - 독립 스크롤 */}
         <div className="flex-1 overflow-hidden">
           {currentConversationId ? (
@@ -332,6 +374,7 @@ export default function DesktopLayout() {
           )}
         </div>
       </main>
+      </div>
     </div>
   );
 }
