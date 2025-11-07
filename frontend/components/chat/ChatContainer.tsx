@@ -1,18 +1,28 @@
 import { useState, useRef, useEffect } from 'react';
-import { Message } from '../../services/api';
+import { Message, Conversation } from '../../services/api';
 import MessageBubble from './MessageBubble';
 import ChatInput from './ChatInput';
 import LoadingSpinner from '../shared/LoadingSpinner';
+import ChatListSidebar from './ChatListSidebar';
 
 interface ChatContainerProps {
   conversationId: number;
+  conversations: Conversation[];
+  onSelectConversation: (id: number) => void;
+  isLoading?: boolean;
 }
 
-export default function ChatContainer({ conversationId }: ChatContainerProps) {
+export default function ChatContainer({
+  conversationId,
+  conversations,
+  onSelectConversation,
+  isLoading = false,
+}: ChatContainerProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isMessagesLoading, setIsMessagesLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -21,7 +31,7 @@ export default function ChatContainer({ conversationId }: ChatContainerProps) {
   const fetchMessages = async () => {
     if (!conversationId) return;
 
-    setIsLoading(true);
+    setIsMessagesLoading(true);
     setError(null);
     try {
       // TODO: API에서 메시지 가져오기
@@ -43,7 +53,7 @@ export default function ChatContainer({ conversationId }: ChatContainerProps) {
       console.error('Failed to fetch messages:', err);
       setError('메시지를 불러오는데 실패했습니다.');
     } finally {
-      setIsLoading(false);
+      setIsMessagesLoading(false);
     }
   };
 
@@ -86,60 +96,106 @@ export default function ChatContainer({ conversationId }: ChatContainerProps) {
     }, 1000);
   };
 
-  if (isLoading) {
+  if (isMessagesLoading) {
     return (
-      <div className="flex-1 flex items-center justify-center">
-        <LoadingSpinner size="lg" />
+      <div className="flex-1 flex flex-col h-full">
+        {/* 상단 바 */}
+        <div className="bg-white border-b p-3 flex items-center justify-between sticky top-0 z-10">
+          <div className="flex items-center gap-2">
+            <h2 className="text-base font-semibold text-gray-800">💬 채팅</h2>
+          </div>
+        </div>
+        <div className="flex-1 flex items-center justify-center">
+          <LoadingSpinner size="lg" />
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="flex-1 flex items-center justify-center p-8">
-        <div className="text-center text-red-600">
-          <p className="font-medium">{error}</p>
-          <button
-            onClick={fetchMessages}
-            className="mt-4 px-4 py-2 bg-red-100 hover:bg-red-200 rounded-lg text-sm"
-          >
-            다시 시도
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (!messages || messages.length === 0) {
-    return (
-      <div className="flex-1 flex flex-col h-full overflow-hidden">
-        <div className="flex-1 flex items-center justify-center overflow-hidden">
-          <div className="text-center text-gray-500 p-4">
-            <h3 className="text-lg font-semibold mb-2">💬 새로운 대화를 시작하세요!</h3>
-            <p className="text-sm">아래 입력창에 메시지를 입력하세요.</p>
+      <div className="flex-1 flex flex-col h-full">
+        {/* 상단 바 */}
+        <div className="bg-white border-b p-3 flex items-center justify-between sticky top-0 z-10">
+          <div className="flex items-center gap-2">
+            <h2 className="text-base font-semibold text-gray-800">💬 채팅</h2>
           </div>
         </div>
-        <div className="border-t border-gray-200 p-4 flex-shrink-0">
-          <ChatInput onSendMessage={handleSendMessage} />
+        <div className="flex-1 flex items-center justify-center p-8">
+          <div className="text-center text-red-600">
+            <p className="font-medium">{error}</p>
+            <button
+              onClick={fetchMessages}
+              className="mt-4 px-4 py-2 bg-red-100 hover:bg-red-200 rounded-lg text-sm"
+            >
+              다시 시도
+            </button>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden">
-      {/* 메시지 영역 - 독립 스크롤 */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4">
-        {messages.map((message) => (
-          <MessageBubble key={message.id} message={message} />
-        ))}
-        <div ref={messagesEndRef} />
+    <>
+      <div className="flex-1 flex flex-col h-full">
+        {/* 상단 바 - 햄버거 메뉴 포함 */}
+        <div className="bg-white border-b p-3 flex items-center justify-between sticky top-0 z-10">
+          <div className="flex items-center gap-2">
+            <h2 className="text-base font-semibold text-gray-800">💬 채팅</h2>
+            {conversationId && (
+              <span className="text-xs text-gray-500">ID: {conversationId}</span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            <span className="text-xs text-gray-600">AI 연결됨</span>
+            {/* 햄버거 메뉴 버튼 */}
+            <button
+              onClick={() => setIsSidebarOpen(true)}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              title="채팅 목록"
+            >
+              <span className="text-xl">≡</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 메시지 영역 - 독립 스크롤 */}
+        {(!messages || messages.length === 0) ? (
+          <div className="flex-1 flex items-center justify-center overflow-hidden">
+            <div className="text-center text-gray-500 p-4">
+              <h3 className="text-lg font-semibold mb-2">💬 새로운 대화를 시작하세요!</h3>
+              <p className="text-sm">아래 입력창에 메시지를 입력하세요.</p>
+            </div>
+          </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4">
+            {messages.map((message) => (
+              <MessageBubble key={message.id} message={message} />
+            ))}
+            <div ref={messagesEndRef} />
+          </div>
+        )}
+
+        {/* 입력창 - 고정 */}
+        <div className="border-t border-gray-200 p-4 flex-shrink-0">
+          <ChatInput onSendMessage={handleSendMessage} />
+        </div>
       </div>
 
-      {/* 입력창 - 고정 */}
-      <div className="border-t border-gray-200 p-4 flex-shrink-0">
-        <ChatInput onSendMessage={handleSendMessage} />
-      </div>
-    </div>
+      {/* 채팅 목록 슬라이딩 패널 */}
+      <ChatListSidebar
+        conversations={conversations}
+        currentConversationId={conversationId}
+        onSelectConversation={(id) => {
+          onSelectConversation(id);
+          setIsSidebarOpen(false);
+        }}
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
+        isLoading={isLoading}
+      />
+    </>
   );
 }

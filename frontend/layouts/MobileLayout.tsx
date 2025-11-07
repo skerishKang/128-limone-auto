@@ -51,7 +51,12 @@ export default function MobileLayout() {
 
       {/* 메인: 채팅 */}
       <main className="h-[calc(100vh-64px)]">
-        <ChatContainer conversationId={currentConversationId || 0} />
+        <ChatContainer
+          conversationId={currentConversationId || 0}
+          conversations={conversations}
+          onSelectConversation={handleSelectConversation}
+          isLoading={isLoading}
+        />
       </main>
 
       {/* 햄버거 메뉴 */}

@@ -215,46 +215,6 @@ export default function DesktopLayout() {
           </div>
         </div>
 
-        {/* 대화 목록 */}
-        <div className="p-3 border-b bg-gray-50">
-          <h2 className="text-sm font-semibold text-gray-600 mb-2">💬 채팅 목록</h2>
-          <div className="space-y-1 max-h-32 overflow-y-auto">
-            {isLoading ? (
-              <div className="flex items-center justify-center p-4">
-                <LoadingSpinner size="sm" />
-              </div>
-            ) : conversations.length === 0 ? (
-              <div className="text-center text-gray-500 p-2">
-                <p className="text-sm">대화가 없습니다</p>
-              </div>
-            ) : (
-              conversations.map((conv) => (
-                <div
-                  key={conv.id}
-                  onClick={() => setCurrentConversationId(conv.id)}
-                  className={`
-                    p-2 rounded-lg cursor-pointer
-                    transition-colors text-xs
-                    ${currentConversationId === conv.id
-                      ? 'bg-yellow-100 border-2 border-yellow-400'
-                      : 'bg-gray-50 hover:bg-gray-100'
-                    }
-                  `}
-                >
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-medium text-gray-800 truncate flex-1">
-                      {conv.title}
-                    </h3>
-                    <span className="text-xs text-gray-500 ml-1">
-                      {conv.message_count || 0}
-                    </span>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
         {/* 대시보드 위젯들 - 독립 스크롤 */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden">
           <DashboardPanel />
@@ -298,6 +258,9 @@ export default function DesktopLayout() {
           {currentConversationId ? (
             <ChatContainer
               conversationId={currentConversationId}
+              conversations={conversations}
+              onSelectConversation={setCurrentConversationId}
+              isLoading={isLoading}
             />
           ) : (
             <div className="h-full flex items-center justify-center bg-gray-50">
@@ -308,7 +271,7 @@ export default function DesktopLayout() {
                 </h3>
                 <p className="text-gray-600 text-sm mb-4">
                   왼쪽에서 새 채팅을 만들거나,<br />
-                  기존 대화를 선택하세요.
+                  우측 상단 햄버거 메뉴에서 채팅 목록을 확인하세요.
                 </p>
                 <button
                   onClick={handleNewChat}
