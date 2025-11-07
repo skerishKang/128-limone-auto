@@ -9,6 +9,10 @@ import SystemWidget from './SystemWidget';
 import TodoWidget from './TodoWidget';
 import LoadingSpinner from '../shared/LoadingSpinner';
 
+interface DashboardPanelProps {
+  columns?: 1 | 2 | 3; // 동적 열 수
+}
+
 interface DashboardStats {
   gmail: number;
   calendar: number;
@@ -17,7 +21,7 @@ interface DashboardStats {
   tasks: number;
 }
 
-export default function DashboardPanel() {
+export default function DashboardPanel({ columns = 2 }: DashboardPanelProps) {
   const [stats, setStats] = useState<DashboardStats>({
     gmail: 0,
     calendar: 0,
@@ -82,13 +86,17 @@ export default function DashboardPanel() {
         {lastUpdated.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
       </div>
 
-      {/* 위젯 그리드 - 2컬럼으로 축소 */}
+      {/* 위젯 그리드 - 동적 열 수 */}
       {isLoading ? (
         <div className="flex items-center justify-center py-8">
           <LoadingSpinner size="sm" />
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-2">
+        <div className={`grid gap-2 ${
+          columns === 1 ? 'grid-cols-1' :
+          columns === 2 ? 'grid-cols-2' :
+          'grid-cols-3'
+        }`}>
           <GmailWidget />
           <CalendarWidget />
           <TelegramWidget />

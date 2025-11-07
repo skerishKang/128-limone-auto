@@ -8,7 +8,10 @@ export default function DesktopLayout() {
   const { conversations, isLoading, createConversation, updateConversationTitle } = useConversations();
   const [currentConversationId, setCurrentConversationId] = useState<number | null>(null);
   const [isCreating, setIsCreating] = useState(false);
-  const [chatWidth, setChatWidth] = useState(400); // 채팅창 기본 너비 (고정값)
+  const [chatWidth, setChatWidth] = useState(0); // 0이면 flex-1로 자동 조절
+  const [dashboardColumns, setDashboardColumns] = useState<1 | 2 | 3>(2); // 대시보드 열 수
+  const [dashboardFlex, setDashboardFlex] = useState(1); // 대시보드 flex 값
+  const [chatFlex, setChatFlex] = useState(1); // 채팅 flex 값
   const containerRef = useRef<HTMLDivElement>(null);
   const isResizing = useRef(false);
 
@@ -31,6 +34,38 @@ export default function DesktopLayout() {
     document.body.style.userSelect = 'none';
   };
 
+  // 대시보드/채팅 flex 비율 업데이트
+  const updateFlexRatios = (width: number) => {
+    if (!containerRef.current) return;
+    const containerRect = containerRef.current.getBoundingClientRect();
+    const availableWidth = containerRect.width - 64 - 1; // Activity Bar + Resizer 제외
+    const chatRatio = Math.max(0, Math.min(3, width / availableWidth));
+    const dashboardRatio = Math.max(0, Math.min(3, (availableWidth - width) / availableWidth));
+
+    // chatRatio에 따라 열 수 변경
+    if (chatRatio < 0.2) {
+      setDashboardColumns(3);
+      setDashboardFlex(3);
+      setChatFlex(0);
+    } else if (chatRatio < 0.4) {
+      setDashboardColumns(1);
+      setDashboardFlex(1);
+      setChatFlex(2);
+    } else if (chatRatio < 0.6) {
+      setDashboardColumns(2);
+      setDashboardFlex(1);
+      setChatFlex(1);
+    } else if (chatRatio < 0.8) {
+      setDashboardColumns(2);
+      setDashboardFlex(2);
+      setChatFlex(1);
+    } else {
+      setDashboardColumns(3);
+      setDashboardFlex(1);
+      setChatFlex(3);
+    }
+  };
+
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!isResizing.current || !containerRef.current) return;
@@ -38,12 +73,13 @@ export default function DesktopLayout() {
       const containerRect = containerRef.current.getBoundingClientRect();
       const newChatWidth = containerRect.width - (e.clientX - containerRect.left);
 
-      // 최소/최대 너비 제한
-      const minChatWidth = 350;
+      // 최소/최대 너비 제한 (300px로 더 작게)
+      const minChatWidth = 0; // 0이면 flex-1
       const maxChatWidth = 800;
       const constrainedWidth = Math.min(Math.max(newChatWidth, minChatWidth), maxChatWidth);
 
       setChatWidth(constrainedWidth);
+      updateFlexRatios(constrainedWidth);
     };
 
     const handleMouseUp = () => {
@@ -199,10 +235,11 @@ export default function DesktopLayout() {
       </aside>
 
       {/* ========================================
-          2. 중간: 대시보드 (弹性 크기 - flex: 1로 남은 공간 모두)
+          2. 중간: 대시보드 (弹性 크기 - flex 값 동적 변경)
       ======================================== */}
       <div
-        className="bg-white border-r flex flex-col shadow-sm transition-all duration-200 overflow-hidden flex-1"
+        className="bg-white border-r flex flex-col shadow-sm transition-all duration-200 overflow-hidden min-w-0"
+        style={{ flexGrow: dashboardFlex }}
       >
         {/* 헤더 */}
         <div className="p-3 border-b bg-white sticky top-0 z-10">
@@ -216,7 +253,7 @@ export default function DesktopLayout() {
 
         {/* 대시보드 위젯들 - 독립 스크롤 */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden">
-          <DashboardPanel />
+          <DashboardPanel columns={dashboardColumns} />
         </div>
       </div>
 
@@ -225,16 +262,19 @@ export default function DesktopLayout() {
       ======================================== */}
       <div
         onMouseDown={handleMouseDown}
-        className="w-1 bg-gray-200 hover:bg-yellow-400 cursor-col-resize transition-colors duration-150 flex-shrink-0"
-        title="드래그로 너비 조절"
+        className="w-1 bg-gray-200 hover:bg-yellow-400 cursor-col-resize transition-colors duration-150 flex-shrink-0 z-10"
+        title={`드래그로 크기 조절 (대시보드 ${dashboardColumns}열, 대시보드 flex:${dashboardFlex}, 채팅 flex:${chatFlex})`}
       />
 
       {/* ========================================
-          3. 우측: 채팅창 (고정 크기)
+          3. 우측: 채팅창 (弹性 크기 - flex 값 동적 변경)
       ======================================== */}
       <main
-        className="flex flex-col bg-white shadow-sm flex-shrink-0"
-        style={{ width: `${chatWidth}px` }}
+        className="flex flex-col bg-white shadow-sm flex-1 min-w-0"
+        style={{
+          width: chatWidth > 0 ? `${chatWidth}px` : undefined,
+          flexGrow: chatFlex
+        }}
       >
         {/* 상단 바 */}
         <div className="bg-white border-b p-3 flex items-center justify-between sticky top-0 z-10">
