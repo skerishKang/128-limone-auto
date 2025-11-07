@@ -5,7 +5,7 @@ import { useConversations } from '../hooks/useChat';
 import LoadingSpinner from '../components/shared/LoadingSpinner';
 
 export default function DesktopLayout() {
-  const { conversations, isLoading, createConversation } = useConversations();
+  const { conversations, isLoading, createConversation, updateConversationTitle } = useConversations();
   const [currentConversationId, setCurrentConversationId] = useState<number | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [chatWidth, setChatWidth] = useState(450); // 채팅창 기본 너비 (모바일 크기)
@@ -260,6 +260,7 @@ export default function DesktopLayout() {
               conversationId={currentConversationId}
               conversations={conversations}
               onSelectConversation={setCurrentConversationId}
+              onUpdateTitle={updateConversationTitle}
               isLoading={isLoading}
             />
           ) : (

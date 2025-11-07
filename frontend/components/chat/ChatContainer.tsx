@@ -9,6 +9,7 @@ interface ChatContainerProps {
   conversationId: number;
   conversations: Conversation[];
   onSelectConversation: (id: number) => void;
+  onUpdateTitle: (id: number, newTitle: string) => void;
   isLoading?: boolean;
 }
 
@@ -16,6 +17,7 @@ export default function ChatContainer({
   conversationId,
   conversations,
   onSelectConversation,
+  onUpdateTitle,
   isLoading = false,
 }: ChatContainerProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -102,7 +104,13 @@ export default function ChatContainer({
         {/* 상단 바 */}
         <div className="bg-white border-b p-3 flex items-center justify-between sticky top-0 z-10">
           <div className="flex items-center gap-2">
-            <h2 className="text-base font-semibold text-gray-800">💬 채팅</h2>
+            {conversationId ? (
+              <h2 className="text-base font-semibold text-gray-800 truncate">
+                {conversations.find(c => c.id === conversationId)?.title || '새 대화'}
+              </h2>
+            ) : (
+              <h2 className="text-base font-semibold text-gray-800">새 대화 시작</h2>
+            )}
           </div>
         </div>
         <div className="flex-1 flex items-center justify-center">
@@ -118,7 +126,13 @@ export default function ChatContainer({
         {/* 상단 바 */}
         <div className="bg-white border-b p-3 flex items-center justify-between sticky top-0 z-10">
           <div className="flex items-center gap-2">
-            <h2 className="text-base font-semibold text-gray-800">💬 채팅</h2>
+            {conversationId ? (
+              <h2 className="text-base font-semibold text-gray-800 truncate">
+                {conversations.find(c => c.id === conversationId)?.title || '새 대화'}
+              </h2>
+            ) : (
+              <h2 className="text-base font-semibold text-gray-800">새 대화 시작</h2>
+            )}
           </div>
         </div>
         <div className="flex-1 flex items-center justify-center p-8">
@@ -142,9 +156,12 @@ export default function ChatContainer({
         {/* 상단 바 - 햄버거 메뉴 포함 */}
         <div className="bg-white border-b p-3 flex items-center justify-between sticky top-0 z-10">
           <div className="flex items-center gap-2">
-            <h2 className="text-base font-semibold text-gray-800">💬 채팅</h2>
-            {conversationId && (
-              <span className="text-xs text-gray-500">ID: {conversationId}</span>
+            {conversationId ? (
+              <h2 className="text-base font-semibold text-gray-800 truncate">
+                {conversations.find(c => c.id === conversationId)?.title || '새 대화'}
+              </h2>
+            ) : (
+              <h2 className="text-base font-semibold text-gray-800">새 대화 시작</h2>
             )}
           </div>
           <div className="flex items-center gap-2">
@@ -192,6 +209,7 @@ export default function ChatContainer({
           onSelectConversation(id);
           setIsSidebarOpen(false);
         }}
+        onUpdateTitle={onUpdateTitle}
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
         isLoading={isLoading}

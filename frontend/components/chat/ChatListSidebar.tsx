@@ -1,10 +1,12 @@
 import { Conversation } from '../../services/api';
 import LoadingSpinner from '../shared/LoadingSpinner';
+import EditableTitle from '../shared/EditableTitle';
 
 interface ChatListSidebarProps {
   conversations: Conversation[];
   currentConversationId: number | null;
   onSelectConversation: (id: number) => void;
+  onUpdateTitle: (id: number, newTitle: string) => void;
   isOpen: boolean;
   onClose: () => void;
   isLoading?: boolean;
@@ -14,6 +16,7 @@ export default function ChatListSidebar({
   conversations,
   currentConversationId,
   onSelectConversation,
+  onUpdateTitle,
   isOpen,
   onClose,
   isLoading = false,
@@ -63,12 +66,8 @@ export default function ChatListSidebar({
               {conversations.map((conv) => (
                 <div
                   key={conv.id}
-                  onClick={() => {
-                    onSelectConversation(conv.id);
-                    onClose();
-                  }}
                   className={`
-                    p-3 rounded-lg cursor-pointer
+                    p-3 rounded-lg
                     transition-colors text-sm
                     border-2
                     ${
@@ -79,9 +78,11 @@ export default function ChatListSidebar({
                   `}
                 >
                   <div className="flex items-center justify-between">
-                    <h3 className="font-medium text-gray-800 truncate flex-1">
-                      {conv.title}
-                    </h3>
+                    <EditableTitle
+                      title={conv.title}
+                      onUpdate={(newTitle) => onUpdateTitle(conv.id, newTitle)}
+                      className="flex-1"
+                    />
                     <span className="text-xs text-gray-500 ml-2">
                       {conv.message_count || 0}
                     </span>

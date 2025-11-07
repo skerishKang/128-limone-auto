@@ -6,7 +6,7 @@ import { useConversations } from '../hooks/useChat';
 import LoadingSpinner from '../components/shared/LoadingSpinner';
 
 export default function MobileLayout() {
-  const { conversations, isLoading, createConversation } = useConversations();
+  const { conversations, isLoading, createConversation, updateConversationTitle } = useConversations();
   const [menuOpen, setMenuOpen] = useState(false);
   const [currentConversationId, setCurrentConversationId] = useState<number | null>(null);
   const [isCreating, setIsCreating] = useState(false);
@@ -55,6 +55,7 @@ export default function MobileLayout() {
           conversationId={currentConversationId || 0}
           conversations={conversations}
           onSelectConversation={handleSelectConversation}
+          onUpdateTitle={updateConversationTitle}
           isLoading={isLoading}
         />
       </main>
