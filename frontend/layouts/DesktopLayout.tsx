@@ -20,6 +20,7 @@ export default function DesktopLayout() {
   const [layoutMode, setLayoutMode] = useState<'default' | 'chat-focused' | 'chat-only' | 'dashboard-only'>('default'); // 레이아웃 모드
   const [isLayoutMenuOpen, setIsLayoutMenuOpen] = useState(false); // 메뉴 열기/닫기
   const [activePopup, setActivePopup] = useState<'gmail' | 'calendar' | 'telegram' | 'drive' | null>(null); // 팝업 상태
+  const [autoInitialized, setAutoInitialized] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const isResizing = useRef(false);
 
@@ -79,6 +80,21 @@ export default function DesktopLayout() {
     // 첫 로드 시 2:1 모드 (기본값)
     changeLayoutMode('default');
   }, []);
+
+  useEffect(() => {
+    if (autoInitialized || isLoading || isCreating) {
+      return;
+    }
+
+    if (conversations.length > 0) {
+      setCurrentConversationId(prev => prev ?? conversations[0].id);
+      setAutoInitialized(true);
+      return;
+    }
+
+    setAutoInitialized(true);
+    handleNewChat();
+  }, [autoInitialized, conversations, isCreating, isLoading]);
 
   return (
     <div ref={containerRef} className="h-screen flex flex-col bg-gray-50 overflow-hidden">
