@@ -15,11 +15,9 @@ export default function HomePage() {
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
-    // 디바이스 감지
+    // 디바이스 감지 - width만 사용 (userAgent는 개발자도구에서 변함)
     const checkDevice = () => {
-      const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-        navigator.userAgent
-      ) || window.innerWidth < 768;
+      const isMobileDevice = window.innerWidth < 1024; // 1024px 미만: 모바일
       setIsMobile(isMobileDevice);
     };
 
