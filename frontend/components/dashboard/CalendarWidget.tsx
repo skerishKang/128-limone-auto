@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { apiService, CalendarEventsResponse } from '../../services/api';
 import LoadingSpinner from '../shared/LoadingSpinner';
+import WidgetContainer from './WidgetContainer';
 
 interface CalendarEventItem {
   id: string;
@@ -83,18 +84,11 @@ export default function CalendarWidget() {
   };
 
   return (
-    <div
-      className="
-        bg-white rounded-xl p-4
-        hover:shadow-lg transition-shadow
-        border-l-4 border-blue-500
-        h-full flex flex-col
-      "
-    >
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="font-semibold text-gray-800 flex items-center gap-2">
-          📅 Calendar
-        </h3>
+    <WidgetContainer
+      title="Calendar"
+      icon="📅"
+      accentColorClass="border-blue-500"
+      headerExtras={(
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -111,8 +105,10 @@ export default function CalendarWidget() {
             캘린더 열기
           </button>
         </div>
-      </div>
-
+      )}
+      collapsedSummary={<span className="text-xs text-gray-500">오늘 일정 {todayCount}개</span>}
+      className="h-full flex flex-col"
+    >
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <p className="text-2xl font-bold text-blue-600">{todayCount}</p>
@@ -149,6 +145,6 @@ export default function CalendarWidget() {
           ))}
         </div>
       </div>
-    </div>
+    </WidgetContainer>
   );
 }

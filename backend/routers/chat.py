@@ -10,6 +10,8 @@ from database.db import (
     get_messages,
     delete_conversation
 )
+from services.gemini_router import GeminiService
+
 
 router = APIRouter()
 
@@ -90,8 +92,8 @@ async def send_message(conversation_id: int, data: MessageCreate):
             content=data.content
         )
 
-        # AI 응답 생성 (간단한 예시 - 실제 구현에서는 Gemini API 호출)
-        ai_response = await generate_ai_response(data.content)
+        # AI 응답 생성 - Gemini API 연동
+        ai_response = await generate_ai_response(conversation_id, data.content)
         
         # AI 응답 저장
         ai_msg_id = add_message(
@@ -117,16 +119,51 @@ async def delete_chat_conversation(conversation_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to delete conversation: {str(e)}")
 
-async def generate_ai_response(user_message: str) -> str:
-    """AI 응답 생성 (Gemini API 연동 예정)"""
-    # TODO: Gemini API 연동
-    # 현재는 더미 응답
-    responses = [
-        "안녕하세요! Limone AI입니다. 어떻게 도와드릴까요?",
-        " интересный вопрос! 더 자세한 내용을 알려주시겠어요?",
-        "좋은 생각이에요! 더 자세히 탐색해보면 좋겠어요.",
-        "AI powered by Limone 🚀 다음 단계는 무엇이 좋을까요?"
-    ]
-    
-    import random
-    return random.choice(responses)
+async def generate_ai_response(conversation_id: int, user_message: str) -> str:
+    """AI 응답 생성 - Gemini API 연동"""
+    try:
+        # GeminiService 인스턴스 생성
+        gemini_service = GeminiService()
+
+        # 대화 히스토리 조회
+        messages = get_messages(conversation_id)
+
+        # 시스템 프롬프트
+        system_instruction = """당신은 Limone AI입니다. 사용자에게 친절하고helpful한 도움을 제공하세요.
+다음 특징을 가지세요:
+- 친근하고 전문적인 톤으로 대화
+- 한국어로 응답 (필요시 영어도 섞어서)
+- 질문에 대한 명확한 답변 제공
+- Limone 프로젝트의 모든 기능에 대해 잘 알고 있음"""
+
+        # 대화 히스토리를 프롬프트로 구성
+        conversation_history = ""
+        for msg in messages[-10:]:  # 최근 10개 메시지만 사용 (토큰 절약)
+            role = msg['role']
+            content = msg['content']
+            if role == 'user':
+                conversation_history += f"사용자: {content}\n"
+            elif role == 'assistant':
+                conversation_history += f"AI: {content}\n"
+
+        # 현재 사용자 메시지 추가
+        current_prompt = f"{conversation_history}사용자: {user_message}\nAI:"
+
+        # Gemini API 호출
+        response = await gemini_service.generate_text(
+            prompt=current_prompt,
+            system_instruction=system_instruction
+        )
+
+        return response
+
+    except Exception as e:
+        # 오류 발생 시 더미 응답 반환
+        print(f"Gemini API error: {e}")
+        fallback_responses = [
+            "죄송해요, 지금은 일시적인 오류가 발생했어요. 다시 시도해주세요! 😅",
+            "AI 응답 생성 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.",
+            "시스템 점검 중입니다.，稍後 다시 시도해 주세요!"
+        ]
+        import random
+        return random.choice(fallback_responses)

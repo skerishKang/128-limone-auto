@@ -51,13 +51,22 @@ class ApiService {
     // Debug logging to check which URL is being used
     console.log(`[API] Requesting: ${url}`);
 
+    const isFormData = options.body instanceof FormData;
+
+    const defaultHeaders: Record<string, string> = {
+      'ngrok-skip-browser-warning': 'true', // ngrok 경고 페이지 스킵
+    };
+
+    if (!isFormData) {
+      defaultHeaders['Content-Type'] = 'application/json';
+    }
+
     const config: RequestInit = {
+      ...options,
       headers: {
-        'Content-Type': 'application/json',
-        'ngrok-skip-browser-warning': 'true', // ngrok 경고 페이지 스킵
+        ...defaultHeaders,
         ...options.headers,
       },
-      ...options,
     };
 
     try {
