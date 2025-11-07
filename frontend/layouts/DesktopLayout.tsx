@@ -8,7 +8,7 @@ export default function DesktopLayout() {
   const { conversations, isLoading, createConversation, updateConversationTitle } = useConversations();
   const [currentConversationId, setCurrentConversationId] = useState<number | null>(null);
   const [isCreating, setIsCreating] = useState(false);
-  const [chatWidth, setChatWidth] = useState(400); // 채팅창 기본 너비 (작게 설정하여 대시보드 공간 확보)
+  const [chatWidth, setChatWidth] = useState(400); // 채팅창 기본 너비 (고정값)
   const containerRef = useRef<HTMLDivElement>(null);
   const isResizing = useRef(false);
 
@@ -199,11 +199,10 @@ export default function DesktopLayout() {
       </aside>
 
       {/* ========================================
-          2. 중간: 대시보드 (弹性 크기)
+          2. 중간: 대시보드 (弹性 크기 - flex: 1로 남은 공간 모두)
       ======================================== */}
       <div
-        className="bg-white border-r flex flex-col shadow-sm transition-all duration-200 overflow-hidden"
-        style={{ width: `calc(100% - ${64 + 1 + chatWidth}px)` }}
+        className="bg-white border-r flex flex-col shadow-sm transition-all duration-200 overflow-hidden flex-1"
       >
         {/* 헤더 */}
         <div className="p-3 border-b bg-white sticky top-0 z-10">
@@ -231,10 +230,10 @@ export default function DesktopLayout() {
       />
 
       {/* ========================================
-          3. 우측: 채팅창 (고정/가변 크기)
+          3. 우측: 채팅창 (고정 크기)
       ======================================== */}
       <main
-        className="flex flex-col bg-white shadow-sm"
+        className="flex flex-col bg-white shadow-sm flex-shrink-0"
         style={{ width: `${chatWidth}px` }}
       >
         {/* 상단 바 */}
