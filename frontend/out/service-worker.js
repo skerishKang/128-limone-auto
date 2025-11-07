@@ -6,12 +6,30 @@ const urlsToCache = [
   '/icon-512.png',
 ];
 
+// 안전한 캐시 추가 함수
+async function cacheResources(cache) {
+  const cachePromises = urlsToCache.map(async (url) => {
+    try {
+      const response = await fetch(url);
+      if (response.ok) {
+        await cache.put(url, response);
+        console.log(`[SW] Cached: ${url}`);
+      } else {
+        console.log(`[SW] Skipped (not found): ${url}`);
+      }
+    } catch (error) {
+      console.log(`[SW] Failed to cache: ${url}`, error.message);
+    }
+  });
+  await Promise.allSettled(cachePromises);
+}
+
 // 서비스 워커 설치
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
-        return cache.addAll(urlsToCache);
+        return cacheResources(cache);
       })
   );
 });
