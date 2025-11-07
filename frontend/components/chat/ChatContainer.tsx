@@ -68,7 +68,7 @@ export default function ChatContainer({
     scrollToBottom();
   }, [messages]);
 
-  const handleSendMessage = async (content: string) => {
+  const handleSendMessage = async (content: string, file?: File) => {
     // TODO: API로 메시지 전송
     // const response = await apiService.sendMessage(conversationId, content);
     // setMessages(prev => [...prev, response]);
@@ -78,7 +78,7 @@ export default function ChatContainer({
       id: Date.now(),
       conversationId,
       role: 'user',
-      content,
+      content: file ? `${content} [파일 첨부: ${file.name}]` : content,
       created_at: new Date().toISOString(),
       timestamp: Date.now(),
     };
@@ -87,11 +87,25 @@ export default function ChatContainer({
 
     // AI 응답 시뮬레이션
     setTimeout(() => {
+      let aiResponse = '';
+      if (file) {
+        const fileType = file.type;
+        if (fileType.startsWith('image/')) {
+          aiResponse = `🖼️ 이미지를 분석했습니다! "${file.name}" 파일에 대해 AI가 분석한 결과입니다. Gemini 2.5 Flash 비전 모델로 이미지를 확인했습니다.`;
+        } else if (fileType.startsWith('audio/')) {
+          aiResponse = `🎵 오디오 파일을 분석했습니다! "${file.name}" 오디오 내용을 AI가 처리했습니다. Gemini 2.5 Flash 오디오 모델을 사용했습니다.`;
+        } else {
+          aiResponse = `📄 "${file.name}" 파일을 분석했습니다! AI가 문서 내용을 검토하고 요약했습니다.`;
+        }
+      } else {
+        aiResponse = `AI 응답: "${content}"에 대한 답변입니다. Gemini 2.5 Flash 모델을 사용하고 있습니다! 🚀`;
+      }
+
       const aiMessage: Message = {
         id: Date.now() + 1,
         conversationId,
         role: 'assistant',
-        content: `AI 응답: "${content}"에 대한 답변입니다. Gemini 2.5 Flash 모델을 사용하고 있습니다! 🚀`,
+        content: aiResponse,
         created_at: new Date().toISOString(),
         timestamp: Date.now() + 1,
       };

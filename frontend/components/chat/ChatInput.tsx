@@ -1,19 +1,34 @@
-import { useState, KeyboardEvent } from 'react';
+import { useState, KeyboardEvent, useRef, ChangeEvent } from 'react';
+import { useFileUpload } from '../../hooks/useFileUpload';
 
 interface ChatInputProps {
-  onSendMessage: (content: string) => void;
+  onSendMessage: (content: string, file?: File) => void;
   placeholder?: string;
   disabled?: boolean;
 }
 
 export default function ChatInput({ onSendMessage, placeholder = '메시지를 입력하세요...', disabled = false }: ChatInputProps) {
   const [message, setMessage] = useState('');
+  const [dragActive, setDragActive] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { isUploading, uploadFile } = useFileUpload();
 
-  const handleSend = () => {
-    if (!message.trim() || disabled) return;
+  const handleSend = async (withFile?: File) => {
+    if ((!message.trim() && !withFile) || disabled) return;
 
-    onSendMessage(message.trim());
-    setMessage('');
+    try {
+      if (withFile) {
+        // 파일 업로드 후 메시지 전송
+        const uploadResult = await uploadFile(withFile);
+        onSendMessage(message.trim() || '파일 분석해주세요', withFile);
+        setMessage('');
+      } else {
+        onSendMessage(message.trim());
+        setMessage('');
+      }
+    } catch (error) {
+      console.error('Upload failed:', error);
+    }
   };
 
   const handleKeyPress = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -23,53 +38,153 @@ export default function ChatInput({ onSendMessage, placeholder = '메시지를 �
     }
   };
 
+  const handleFileSelect = async (file: File) => {
+    await handleSend(file);
+  };
+
+  const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleFileSelect(file);
+    }
+  };
+
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      handleFileSelect(file);
+    }
+  };
+
+  const openFileDialog = () => {
+    fileInputRef.current?.click();
+  };
+
   return (
-    <div className="flex gap-3 items-end">
-      <div className="flex-1 relative">
-        <textarea
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          onKeyPress={handleKeyPress}
-          placeholder={placeholder}
-          disabled={disabled}
-          rows={1}
-          className={`
-            w-full px-4 py-3 pr-12 rounded-lg border border-gray-300
-            focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
-            resize-none transition-all
-            ${disabled ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}
-          `}
-          style={{ minHeight: '48px', maxHeight: '120px' }}
-        />
-        <div className="absolute right-3 top-1/2 -translate-y-1/2">
-          <button
-            onClick={handleSend}
-            disabled={!message.trim() || disabled}
+    <div
+      onDragEnter={handleDrag}
+      onDragLeave={handleDrag}
+      onDragOver={handleDrag}
+      onDrop={handleDrop}
+      className={`
+        border-2 border-dashed rounded-lg p-4
+        transition-all
+        ${dragActive
+          ? 'border-blue-500 bg-blue-50'
+          : 'border-gray-300 hover:border-blue-400'
+        }
+      `}
+    >
+      <input
+        ref={fileInputRef}
+        type="file"
+        onChange={handleChange}
+        accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.mp3,.wav"
+        className="hidden"
+        disabled={isUploading || disabled}
+      />
+
+      <div className="flex gap-3 items-end">
+        <div className="flex-1 relative">
+          <textarea
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            onKeyPress={handleKeyPress}
+            placeholder={placeholder}
+            disabled={disabled || isUploading}
+            rows={1}
             className={`
-              w-8 h-8 rounded-full flex items-center justify-center
-              transition-colors
-              ${message.trim() && !disabled
-                ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-              }
+              w-full px-4 py-3 pr-12 rounded-lg border border-gray-300
+              focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
+              resize-none transition-all
+              ${disabled || isUploading ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}
             `}
-          >
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+            style={{ minHeight: '48px', maxHeight: '120px' }}
+          />
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 flex gap-2">
+            <button
+              type="button"
+              onClick={openFileDialog}
+              disabled={disabled || isUploading}
+              className={`
+                w-8 h-8 rounded-full flex items-center justify-center
+                transition-colors
+                ${!disabled && !isUploading
+                  ? 'bg-gray-200 hover:bg-gray-300 text-gray-600'
+                  : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                }
+              `}
+              title="파일 첨부"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
-              />
-            </svg>
-          </button>
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
+                />
+              </svg>
+            </button>
+            <button
+              onClick={() => handleSend()}
+              disabled={(!message.trim() && !isUploading) || disabled}
+              className={`
+                w-8 h-8 rounded-full flex items-center justify-center
+                transition-colors
+                ${(message.trim() || isUploading) && !disabled
+                  ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                  : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                }
+              `}
+            >
+              {isUploading ? (
+                <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+              ) : (
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
+                  />
+                </svg>
+              )}
+            </button>
+          </div>
         </div>
       </div>
+      {dragActive && (
+        <div className="mt-2 text-center text-blue-600 text-sm font-medium">
+          📁 파일을 여기에 놓으세요
+        </div>
+      )}
     </div>
   );
 }
