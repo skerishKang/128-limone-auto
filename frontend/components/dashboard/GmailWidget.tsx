@@ -1,106 +1,184 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { apiService } from '../../services/api';
 import LoadingSpinner from '../shared/LoadingSpinner';
 import ErrorMessage from '../shared/ErrorMessage';
 
+interface GmailMessage {
+  id: string;
+  threadId?: string;
+  subject?: string;
+  from?: string;
+  snippet?: string;
+  internalDate?: string;
+  date?: string;
+  labelIds?: string[];
+}
+
+const MAX_RECENT_MESSAGES = 3;
+
 export default function GmailWidget() {
-  const [emails, setEmails] = useState<any[]>([]);
+  const [messages, setMessages] = useState<GmailMessage[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isAuthorized, setIsAuthorized] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const loadEmails = async () => {
+  const loadMessages = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
-      
-      // TODO: 실제 Gmail API 연동 시 실제 API 호출
-      // const emails = await apiService.getGmailEmails();
-      
-      // 현재는 더미 데이터
-      const dummyEmails = [
-        {
-          id: '1',
-          subject: '🎉 Gmail 연동 완료!',
-          sender: 'limone@dev.com',
-          snippet: 'Gmail 위젯이 성공적으로 연동되었습니다.',
-          date: new Date().toISOString(),
-          is_read: false
-        },
-        {
-          id: '2',
-          subject: '📅 캘린더 업데이트',
-          sender: 'calendar@google.com',
-          snippet: '새로운 이벤트 알림이 있습니다.',
-          date: new Date(Date.now() - 3600000).toISOString(),
-          is_read: true
-        }
-      ];
-      
-      setEmails(dummyEmails);
-      setUnreadCount(dummyEmails.filter(e => !e.is_read).length);
+
+      const [list, unread] = await Promise.all([
+        apiService.getGmailMessages({ maxResults: MAX_RECENT_MESSAGES }),
+        apiService.getGmailUnreadCount()
+      ]);
+
+      setMessages(Array.isArray(list) ? list : []);
+      setUnreadCount(unread?.unread ?? 0);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load emails');
+      console.error('Gmail 목록 로드 실패:', err);
+      setError(err instanceof Error ? err.message : 'Gmail 데이터를 불러오지 못했습니다.');
+      setMessages([]);
+      setUnreadCount(0);
     } finally {
       setIsLoading(false);
     }
-  };
-
-  useEffect(() => {
-    loadEmails();
-    // 5분마다 새로고침
-    const interval = setInterval(loadEmails, 300000);
-    return () => clearInterval(interval);
   }, []);
 
-  const handleRefresh = () => {
-    loadEmails();
+  const checkAuthStatus = useCallback(async () => {
+    try {
+      setIsCheckingAuth(true);
+      setError(null);
+      const status = await apiService.getGmailStatus();
+      const authorized = Boolean(status?.authorized);
+      setIsAuthorized(authorized);
+      if (authorized) {
+        await loadMessages();
+      }
+    } catch (err) {
+      console.error('Gmail 인증 상태 확인 실패:', err);
+      setError(err instanceof Error ? err.message : 'Gmail 인증 정보를 확인하지 못했습니다.');
+      setIsAuthorized(false);
+    } finally {
+      setIsCheckingAuth(false);
+      setIsLoading(false);
+    }
+  }, [loadMessages]);
+
+  useEffect(() => {
+    checkAuthStatus();
+  }, [checkAuthStatus]);
+
+  const handleRefresh = async () => {
+    if (isAuthorized) {
+      await loadMessages();
+    } else {
+      await checkAuthStatus();
+    }
+  };
+
+  const handleConnect = async () => {
+    try {
+      window.location.href = await apiService.getGmailAuthUrl({ autoRedirect: true });
+    } catch (err) {
+      console.error('Gmail 인증 URL 생성 실패:', err);
+      setError(err instanceof Error ? err.message : 'Gmail 인증을 시작할 수 없습니다.');
+    }
+  };
+
+  const formatDate = (iso?: string) => {
+    if (!iso) {
+      return '';
+    }
+    try {
+      const date = new Date(Number(iso) || iso);
+      if (Number.isNaN(date.getTime())) {
+        return '';
+      }
+      return date.toLocaleString();
+    } catch {
+      return '';
+    }
   };
 
   return (
-    <div
-      onClick={handleRefresh}
-      className="
-        bg-white rounded-xl p-4 cursor-pointer
-        hover:shadow-lg transition-shadow
-        border-l-4 border-red-500
-      "
-    >
+    <div className="bg-white rounded-xl p-4 border-l-4 border-red-500">
       <div className="flex items-center justify-between mb-3">
         <h3 className="font-semibold text-gray-800 flex items-center gap-2">
           📧 Gmail
         </h3>
-        {isLoading && <LoadingSpinner size="sm" />}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleRefresh}
+            className="text-xs px-2 py-1 rounded bg-red-50 text-red-600 hover:bg-red-100"
+            disabled={isCheckingAuth || isLoading}
+          >
+            {isCheckingAuth ? '확인 중...' : '새로고침'}
+          </button>
+          {isLoading && <LoadingSpinner size="sm" />}
+        </div>
       </div>
 
       {error && <ErrorMessage message={error} />}
 
-      <div className="space-y-2">
-        {emails.length > 0 ? (
-          <>
-            <div className="flex items-center justify-between">
+      {!isCheckingAuth && !isAuthorized ? (
+        <div className="flex flex-col items-center justify-center gap-4 py-6 text-center border border-dashed border-red-300 rounded-xl bg-red-50/60">
+          <p className="text-sm text-gray-700">Gmail에 연결하여 최신 메일을 확인하세요.</p>
+          <button
+            type="button"
+            onClick={handleConnect}
+            className="px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white text-sm font-medium"
+          >
+            Gmail 연동
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs text-gray-500">읽지 않은 메일</p>
               <p className="text-2xl font-bold text-red-600">{unreadCount}</p>
-              <p className="text-sm text-gray-500">읽지 않음</p>
             </div>
-            
-            <div className="pt-2 border-t border-gray-100">
-              <p className="text-xs font-medium text-gray-600 mb-2">최근 이메일</p>
-              {emails.slice(0, 2).map((email) => (
-                <div key={email.id} className="mb-2 last:mb-0">
+            <button
+              type="button"
+              onClick={() => window.open('https://mail.google.com', '_blank')}
+              className="text-xs text-blue-500 hover:underline"
+            >
+              Gmail 열기
+            </button>
+          </div>
+
+          {isLoading ? (
+            <div className="flex justify-center py-6">
+              <LoadingSpinner size="sm" />
+            </div>
+          ) : messages.length > 0 ? (
+            <div className="pt-2 border-t border-gray-100 space-y-2">
+              <p className="text-xs font-medium text-gray-600">최근 이메일</p>
+              {messages.map((message) => (
+                <div key={message.id} className="rounded-lg border border-gray-100 p-2">
                   <p className="text-sm font-medium text-gray-800 truncate">
-                    {email.subject}
+                    {message.subject || '(제목 없음)'}
                   </p>
-                  <p className="text-xs text-gray-500 truncate">
-                    {email.sender}
-                  </p>
+                  {message.from && (
+                    <p className="text-xs text-gray-500 truncate">{message.from}</p>
+                  )}
+                  {message.snippet && (
+                    <p className="text-xs text-gray-500 mt-1 line-clamp-2">{message.snippet}</p>
+                  )}
+                  <p className="text-[11px] text-gray-400 mt-1">{formatDate(message.internalDate || message.date)}</p>
                 </div>
               ))}
             </div>
-          </>
-        ) : (
-          <p className="text-sm text-gray-500">연동 필요</p>
-        )}
-      </div>
+          ) : (
+            <div className="text-sm text-gray-500 text-center py-4 border border-dashed border-gray-200 rounded-lg">
+              최근 메일이 없습니다.
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

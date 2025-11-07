@@ -144,10 +144,10 @@ export default function DriveWidget() {
     try {
       await apiService.deleteDriveFile(fileId);
       setLastUploadMessage(`"${fileName}" 파일이 삭제되었습니다.`);
-      loadDriveInfo();
+      await loadDriveInfo();
     } catch (err) {
       console.error('Drive 파일 삭제 실패:', err);
-      setLastUploadMessage('파일 삭제에 실패했습니다.');
+      setError(err instanceof Error ? err.message : 'Drive 파일 삭제 중 문제가 발생했습니다.');
     }
   };
 
@@ -222,7 +222,7 @@ export default function DriveWidget() {
         </div>
       )}
 
-      {isAuthorized && (
+      {isAuthorized ? (
         <div className="space-y-3">
           <div>
             <div className="flex items-center justify-between mb-1">
@@ -303,7 +303,11 @@ export default function DriveWidget() {
         <div className="flex justify-center py-8">
           <LoadingSpinner size="sm" />
         </div>
-      ) : null}
+      ) : (
+        <div className="text-sm text-gray-500 text-center py-6">
+          Drive 인증 후 사용 가능합니다.
+        </div>
+      )}
     </WidgetContainer>
   );
 }
