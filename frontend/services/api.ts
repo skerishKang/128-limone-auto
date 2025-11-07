@@ -1,4 +1,12 @@
-const API_BASE_URL = "http://localhost:8000";
+// Use environment variable for API URL, with fallback to localhost for development
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+// Helper function to get WebSocket URL based on environment
+export const getWebSocketUrl = (clientId: string): string => {
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const host = process.env.NEXT_PUBLIC_API_URL?.replace(/^http(s?):\/\//, '') || 'localhost:8000';
+  return `${protocol}//${host}/ws/chat/${clientId}`;
+};
 
 export interface Message {
   id: number;
@@ -106,8 +114,9 @@ class ApiService {
 
   // WebSocket connection
   connectWebSocket(clientId: string, onMessage: (data: any) => void): WebSocket {
-    const ws = new WebSocket(`ws://localhost:8000/ws/chat/${clientId}`);
-    
+    const wsUrl = getWebSocketUrl(clientId);
+    const ws = new WebSocket(wsUrl);
+
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);

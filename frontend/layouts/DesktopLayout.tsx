@@ -177,7 +177,7 @@ export default function DesktopLayout() {
         {/* 서비스 아이콘들 */}
         <div className="flex flex-col gap-4">
           {/* Gmail */}
-          <div className="relative group" title="Gmail (5)">
+          <div className="relative group">
             <div
               onClick={() => setActivePopup('gmail')}
               className="w-10 h-10 rounded-lg bg-gray-700 hover:bg-yellow-600 flex items-center justify-center cursor-pointer transition-colors"
@@ -194,7 +194,7 @@ export default function DesktopLayout() {
           </div>
 
           {/* Calendar */}
-          <div className="relative group" title="Calendar (3)">
+          <div className="relative group">
             <div
               onClick={() => setActivePopup('calendar')}
               className="w-10 h-10 rounded-lg bg-gray-700 hover:bg-yellow-600 flex items-center justify-center cursor-pointer transition-colors"
@@ -211,7 +211,7 @@ export default function DesktopLayout() {
           </div>
 
           {/* Telegram */}
-          <div className="relative group" title="Telegram (8)">
+          <div className="relative group">
             <div
               onClick={() => setActivePopup('telegram')}
               className="w-10 h-10 rounded-lg bg-gray-700 hover:bg-yellow-600 flex items-center justify-center cursor-pointer transition-colors"
@@ -228,7 +228,7 @@ export default function DesktopLayout() {
           </div>
 
           {/* Drive */}
-          <div className="relative group" title="Drive (48)">
+          <div className="relative group">
             <div
               onClick={() => setActivePopup('drive')}
               className="w-10 h-10 rounded-lg bg-gray-700 hover:bg-yellow-600 flex items-center justify-center cursor-pointer transition-colors"
@@ -245,7 +245,7 @@ export default function DesktopLayout() {
           </div>
 
           {/* Weather */}
-          <div className="relative group" title="Weather">
+          <div className="relative group">
             <div className="w-10 h-10 rounded-lg bg-gray-700 hover:bg-yellow-600 flex items-center justify-center cursor-pointer transition-colors">
               <span className="text-xl">🌤️</span>
             </div>
@@ -256,7 +256,7 @@ export default function DesktopLayout() {
           </div>
 
           {/* News */}
-          <div className="relative group" title="News">
+          <div className="relative group">
             <div className="w-10 h-10 rounded-lg bg-gray-700 hover:bg-yellow-600 flex items-center justify-center cursor-pointer transition-colors">
               <span className="text-xl">📰</span>
             </div>
@@ -267,7 +267,7 @@ export default function DesktopLayout() {
           </div>
 
           {/* System */}
-          <div className="relative group" title="System">
+          <div className="relative group">
             <div className="w-10 h-10 rounded-lg bg-gray-700 hover:bg-yellow-600 flex items-center justify-center cursor-pointer transition-colors">
               <span className="text-xl">🖥️</span>
             </div>
@@ -278,7 +278,7 @@ export default function DesktopLayout() {
           </div>
 
           {/* Todo */}
-          <div className="relative group" title="Todo (3)">
+          <div className="relative group">
             <div className="w-10 h-10 rounded-lg bg-gray-700 hover:bg-yellow-600 flex items-center justify-center cursor-pointer transition-colors">
               <span className="text-xl">✅</span>
             </div>
