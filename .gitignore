@@ -141,3 +141,4 @@ uploads/
 gmail_credentials.json
 gmail_token.pickle
 service_account.json
+*.json
