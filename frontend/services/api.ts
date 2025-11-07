@@ -155,6 +155,40 @@ class ApiService {
     return this.request<CalendarEventsResponse>(`/api/calendar/events?${searchParams.toString()}`);
   }
 
+  // Drive API
+  async getDriveAuthStatus(): Promise<any> {
+    return this.request('/api/drive/status');
+  }
+
+  async getDriveAuthUrl(): Promise<{ url: string }> {
+    return this.request('/api/drive/auth/google/drive/start');
+  }
+
+  async getDriveFiles(): Promise<any[]> {
+    return this.request('/api/drive/files');
+  }
+
+  async getDriveQuota(): Promise<any> {
+    return this.request('/api/drive/quota');
+  }
+
+  async uploadToDrive(file: File): Promise<any> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    return this.request('/api/drive/upload', {
+      method: 'POST',
+      body: formData,
+      headers: {},
+    });
+  }
+
+  async deleteDriveFile(fileId: string): Promise<any> {
+    return this.request(`/api/drive/files/${fileId}`, {
+      method: 'DELETE',
+    });
+  }
+
   // WebSocket connection
   connectWebSocket(clientId: string, onMessage: (data: any) => void): WebSocket {
     const wsUrl = getWebSocketUrl(clientId);
