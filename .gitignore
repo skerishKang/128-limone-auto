@@ -137,8 +137,19 @@ uploads/
 *.db
 *.db-journal
 
+# Next.js
+frontend/.next/
+frontend/out/
+frontend/build/
+frontend/dist/
+frontend/node_modules/
+
+# Vercel
+.vercel
+
 # Secret files
 gmail_credentials.json
 gmail_token.pickle
 service_account.json
 *.json
+backend/credentials/*.json
