@@ -1,9 +1,16 @@
 import logging
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, date, timedelta, timezone
 from enum import Enum, auto
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 
+from database.db import (
+    get_conversation,
+    get_messages,
+    get_messages_for_user_on_date,
+    save_conversation_memory,
+    save_daily_summary,
+)
 from services.drive_service import (
     drive_service,
     DriveAuthorizationError,
@@ -19,6 +26,7 @@ from services.calendar_service import (
     CalendarAuthorizationError,
     CalendarAPIError,
 )
+from services.gemini_router import GeminiService
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +35,8 @@ class ChatIntent(Enum):
     """지원되는 챗봇 액션 의도 목록"""
 
     GENERAL = auto()
+    CONVERSATION_SUMMARY = auto()
+    DAILY_SUMMARY = auto()
     DRIVE_LIST = auto()
     DRIVE_SEARCH = auto()
     DRIVE_UPLOAD = auto()
@@ -39,12 +49,22 @@ class ChatIntent(Enum):
 class ChatActionRouter:
     """사용자 메시지를 분석해 적절한 액션을 실행하는 라우터."""
 
+    SUMMARY_KEYWORDS = ["요약", "정리", "summary"]
+    DAILY_KEYWORDS = ["오늘", "일일", "daily", "하루", "today"]
     DRIVE_KEYWORDS = ["드라이브", "drive", "파일", "문서"]
     GMAIL_KEYWORDS = ["메일", "이메일", "gmail", "편지"]
     CALENDAR_KEYWORDS = ["일정", "캘린더", "calendar", "스케줄", "약속"]
 
+    def __init__(self) -> None:
+        self.gemini_service = GeminiService()
+
     def detect_intent(self, user_message: str) -> ChatIntent:
         text = user_message.lower()
+
+        if any(keyword in text for keyword in self.SUMMARY_KEYWORDS):
+            if any(keyword in text for keyword in self.DAILY_KEYWORDS):
+                return ChatIntent.DAILY_SUMMARY
+            return ChatIntent.CONVERSATION_SUMMARY
 
         if any(keyword in text for keyword in self.DRIVE_KEYWORDS):
             if re.search(r"검색|찾아|search", text):
@@ -65,12 +85,26 @@ class ChatActionRouter:
 
         return ChatIntent.GENERAL
 
-    async def handle(self, user_message: str) -> Optional[Dict[str, Any]]:
+    async def handle(self, user_message: str, conversation_id: Optional[int] = None) -> Optional[Dict[str, Any]]:
         intent = self.detect_intent(user_message)
         if intent == ChatIntent.GENERAL:
             return None
 
         try:
+            if intent == ChatIntent.CONVERSATION_SUMMARY:
+                if conversation_id is None:
+                    return {
+                        "type": "error",
+                        "message": "대화 요약을 위해서는 현재 대화 정보가 필요합니다.",
+                    }
+                return await self._handle_conversation_summary(conversation_id)
+            if intent == ChatIntent.DAILY_SUMMARY:
+                if conversation_id is None:
+                    return {
+                        "type": "error",
+                        "message": "일일 요약을 위해서는 기준이 되는 대화가 필요합니다.",
+                    }
+                return await self._handle_daily_summary(user_message, conversation_id)
             if intent == ChatIntent.DRIVE_LIST:
                 return await self._handle_drive_list()
             if intent == ChatIntent.DRIVE_SEARCH:
@@ -102,6 +136,279 @@ class ChatActionRouter:
                 "type": "error",
                 "message": f"액션 처리 중 오류가 발생했습니다: {exc}",
             }
+
+        return None
+
+    async def _handle_conversation_summary(
+        self,
+        conversation_id: int,
+        *,
+        created_by: str = "user_command",
+        trigger: str = "manual",
+    ) -> Dict[str, Any]:
+        conversation = get_conversation(conversation_id)
+        if not conversation:
+            return {
+                "type": "conversation_summary",
+                "message": "대화 정보를 찾지 못했습니다.",
+                "conversation_id": conversation_id,
+            }
+
+        user_id = conversation.get("user_id", "default_user")
+        title = conversation.get("title") or f"대화 #{conversation_id}"
+
+        messages = get_messages(conversation_id)
+        if not messages:
+            return {
+                "type": "conversation_summary",
+                "title": title,
+                "message": "요약할 대화 메시지가 없습니다.",
+                "conversation_id": conversation_id,
+            }
+
+        formatted_dialogue = self._format_conversation_messages(messages)
+
+        system_instruction = (
+            "당신은 대화 요약 비서입니다. 주어진 대화를 요약하고, 핵심 포인트를 항목으로 정리하세요."
+            " 사용자에게 도움이 될 만한 후속 액션이 있다면 마지막 줄에 '추천: ...' 형식으로 제안하세요."
+        )
+        prompt = (
+            "다음은 사용자와 AI 사이의 대화입니다. 중요한 사실, 결정, 요청 위주로 요약해 주세요.\n"
+            "---\n"
+            f"{formatted_dialogue}\n"
+            "---\n"
+            "출력 형식:\n"
+            "1. 한 문장 요약\n2. 핵심 포인트 3~5개 (불릿)\n3. 필요 시 후속 제안"
+        )
+
+        summary_text = await self.gemini_service.generate_text(prompt, system_instruction=system_instruction)
+
+        metadata = {
+            "message_count": len(messages),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "trigger": trigger,
+        }
+        tags = self._extract_tags_from_summary(summary_text)
+        importance = self._estimate_importance(summary_text)
+        followups = self._derive_followups(tags, summary_text)
+        metadata["followups"] = followups
+        saved = save_conversation_memory(
+            conversation_id=conversation_id,
+            user_id=user_id,
+            content=summary_text,
+            title=title,
+            metadata=metadata,
+            tags=tags,
+            importance=importance,
+            created_by=created_by,
+        )
+
+        return {
+            "type": "conversation_summary",
+            "title": title,
+            "summary": summary_text,
+            "conversation_id": conversation_id,
+            "memory_id": saved.get("id"),
+            "created_at": saved.get("created_at"),
+            "tags": saved.get("tags"),
+            "importance": saved.get("importance"),
+            "followups": followups,
+        }
+
+    async def _handle_daily_summary(
+        self,
+        user_message: str,
+        conversation_id: int,
+        *,
+        created_by: str = "user_command",
+        target_date: Optional[date] = None,
+        trigger: str = "manual",
+    ) -> Dict[str, Any]:
+        conversation = get_conversation(conversation_id)
+        if not conversation:
+            return {
+                "type": "daily_summary",
+                "message": "사용자 정보를 찾지 못했습니다.",
+            }
+
+        user_id = conversation.get("user_id", "default_user")
+        resolved_date = target_date or self._parse_summary_date(user_message)
+        if resolved_date is None:
+            resolved_date = datetime.now().date()
+
+        messages = get_messages_for_user_on_date(user_id, resolved_date)
+        if not messages:
+            return {
+                "type": "daily_summary",
+                "summary_date": resolved_date.isoformat(),
+                "message": "해당 날짜에 요약할 메시지가 없습니다.",
+            }
+
+        formatted_messages = self._format_daily_messages(messages)
+
+        system_instruction = (
+            "당신은 개인 비서입니다. 하루 동안의 대화를 요약하고 중요한 할 일이나 결정 사항을 정리하세요."
+            " 가능하면 긍정적인 마무리 문장을 덧붙이세요."
+        )
+        prompt = (
+            f"다음은 {resolved_date.isoformat()} 동안의 사용자와 AI 대화 기록입니다.\n"
+            "각 대화의 맥락을 유지하며 핵심 내용을 요약하고, 행동 아이템이 있다면 목록으로 작성해주세요.\n"
+            "---\n"
+            f"{formatted_messages}\n"
+            "---\n출력 형식:\n1. 하루 요약 (2~3문장)\n2. 행동 아이템 목록 (있을 때만)\n3. 격려 또는 마무리 문장"
+        )
+
+        summary_text = await self.gemini_service.generate_text(prompt, system_instruction=system_instruction)
+
+        metadata = {
+            "message_count": len(messages),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "trigger": trigger,
+        }
+        tags = self._extract_tags_from_summary(summary_text)
+        importance = self._estimate_importance(summary_text)
+        followups = self._derive_followups(tags, summary_text)
+        metadata["followups"] = followups
+        saved = save_daily_summary(
+            user_id=user_id,
+            summary_date=resolved_date,
+            content=summary_text,
+            metadata=metadata,
+            tags=tags,
+            importance=importance,
+            created_by=created_by,
+        )
+
+        return {
+            "type": "daily_summary",
+            "summary_date": resolved_date.isoformat(),
+            "summary": summary_text,
+            "record_id": saved.get("id"),
+            "created_at": saved.get("created_at"),
+            "tags": saved.get("tags"),
+            "importance": saved.get("importance"),
+            "followups": followups,
+        }
+
+    def _extract_tags_from_summary(self, summary_text: str) -> List[str]:
+        tags: List[str] = []
+        lowered = summary_text.lower()
+        keyword_map = {
+            "회의": ["meeting", "회의", "미팅"],
+            "업무": ["work", "업무", "작업"],
+            "일정": ["schedule", "일정", "캘린더"],
+            "이메일": ["email", "메일"],
+            "파일": ["file", "파일", "문서"],
+        }
+        for tag, keywords in keyword_map.items():
+            if any(keyword in lowered for keyword in keywords):
+                tags.append(tag)
+        if not tags:
+            tags.append("일반")
+        return tags
+
+    def _estimate_importance(self, summary_text: str) -> int:
+        lowered = summary_text.lower()
+        high_keywords = ["긴급", "urgent", "중요", "기한", "deadline"]
+        medium_keywords = ["확인", "follow", "검토", "review"]
+        if any(keyword in lowered for keyword in high_keywords):
+            return 5
+        if any(keyword in lowered for keyword in medium_keywords):
+            return 4
+        return 3
+
+    def _derive_followups(self, tags: List[str], summary_text: str) -> List[Dict[str, str]]:
+        followups: List[Dict[str, str]] = []
+
+        tag_to_followup = {
+            "회의": {
+                "label": "회의 요약 공유",
+                "suggestion": "회의 내용을 정리해서 메일로 보내줘",
+            },
+            "이메일": {
+                "label": "이메일 작성",
+                "suggestion": "요약을 참고해서 메일 초안 작성해줘",
+            },
+            "일정": {
+                "label": "캘린더 일정 등록",
+                "suggestion": "요약 기반으로 캘린더 일정 만들어줘",
+            },
+            "파일": {
+                "label": "관련 파일 검색",
+                "suggestion": "요약과 관련된 최근 파일 찾아줘",
+            },
+            "업무": {
+                "label": "할 일 정리",
+                "suggestion": "요약 내용을 바탕으로 해야 할 작업 리스트 만들어줘",
+            },
+        }
+
+        added_labels = set()
+        for tag in tags:
+            follow = tag_to_followup.get(tag)
+            if follow and follow["label"] not in added_labels:
+                followups.append(follow)
+                added_labels.add(follow["label"])
+
+        lowered = summary_text.lower()
+        keyword_followups = [
+            ("보고서", "보고서 작성 도와줘", "보고서 작성"),
+            ("정리", "중요 포인트만 다시 정리해줘", "핵심 정리"),
+        ]
+        for keyword, suggestion, label in keyword_followups:
+            if keyword in lowered and label not in added_labels:
+                followups.append({"label": label, "suggestion": suggestion})
+                added_labels.add(label)
+
+        return followups
+
+    def _format_conversation_messages(self, messages: List[Dict[str, Any]], limit: int = 50) -> str:
+        lines: List[str] = []
+        for msg in messages[-limit:]:
+            role = "사용자" if msg.get("role") == "user" else "AI"
+            content = msg.get("content", "").strip()
+            if content:
+                lines.append(f"{role}: {content}")
+        return "\n".join(lines)
+
+    def _format_daily_messages(self, messages: List[Dict[str, Any]], limit: int = 120) -> str:
+        lines: List[str] = []
+        for msg in messages[:limit]:
+            convo = msg.get("conversations") or {}
+            title = convo.get("title") or f"대화 #{msg.get('conversation_id')}"
+            role = "사용자" if msg.get("role") == "user" else "AI"
+            created_at = msg.get("created_at")
+            try:
+                timestamp = datetime.fromisoformat(created_at.replace("Z", "+00:00")) if isinstance(created_at, str) else None
+            except ValueError:
+                timestamp = None
+            timestamp_text = timestamp.astimezone(timezone.utc).isoformat() if timestamp else str(created_at)
+            content = msg.get("content", "").strip()
+            if content:
+                lines.append(f"[{title}] {role} @ {timestamp_text}: {content}")
+        return "\n".join(lines)
+
+    def _parse_summary_date(self, user_message: str) -> Optional[date]:
+        lowered = user_message.lower()
+        today = datetime.now().date()
+
+        if "오늘" in lowered or "today" in lowered:
+            return today
+        if "어제" in lowered or "yesterday" in lowered:
+            return today - timedelta(days=1)
+        if "그저께" in lowered:
+            return today - timedelta(days=2)
+
+        date_match = re.search(r"(\d{4})[./-](\d{1,2})[./-](\d{1,2})", user_message)
+        if date_match:
+            year, month, day = map(int, date_match.groups())
+            return date(year, month, day)
+
+        month_day_match = re.search(r"(\d{1,2})월\s*(\d{1,2})일", user_message)
+        if month_day_match:
+            month, day = map(int, month_day_match.groups())
+            year = today.year
+            return date(year, month, day)
 
         return None
 

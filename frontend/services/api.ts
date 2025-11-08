@@ -22,6 +22,33 @@ export interface AttachmentMetadata {
   mimeType?: string;
 }
 
+export interface ConversationMemory {
+  id: string;
+  conversation_id: number;
+  user_id: string;
+  title?: string | null;
+  content: string;
+  created_by: string;
+  metadata?: Record<string, any> | null;
+  created_at: string;
+  updated_at?: string | null;
+  tags?: string[] | null;
+  importance?: number | null;
+}
+
+export interface DailySummary {
+  id: string;
+  user_id: string;
+  summary_date: string;
+  content: string;
+  created_by: string;
+  metadata?: Record<string, any> | null;
+  created_at: string;
+  updated_at?: string | null;
+  tags?: string[] | null;
+  importance?: number | null;
+}
+
 export interface Message {
   id: number;
   conversationId?: number;
@@ -164,6 +191,21 @@ class ApiService {
     return this.request(`/api/chat/conversations/${conversationId}`, {
       method: 'DELETE',
     });
+  }
+
+  async getConversationMemories(conversationId: number, limit: number = 5): Promise<ConversationMemory[]> {
+    const searchParams = new URLSearchParams({ limit: String(limit) });
+    return this.request<ConversationMemory[]>(`/api/chat/conversations/${conversationId}/memories?${searchParams.toString()}`);
+  }
+
+  async getDailySummaries(userId: string, limit: number = 7): Promise<DailySummary[]> {
+    const searchParams = new URLSearchParams({ user_id: userId, limit: String(limit) });
+    return this.request<DailySummary[]>(`/api/chat/summaries/daily?${searchParams.toString()}`);
+  }
+
+  async getLatestDailySummary(userId: string): Promise<DailySummary | null> {
+    const searchParams = new URLSearchParams({ user_id: userId });
+    return this.request<DailySummary | null>(`/api/chat/summaries/daily/latest?${searchParams.toString()}`);
   }
 
   // Files API

@@ -1,6 +1,7 @@
 import json
-from datetime import datetime
+from datetime import datetime, date, timedelta
 from typing import List, Optional, Dict, Any
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -10,13 +11,20 @@ from database.db import (
     list_conversations,
     add_message,
     get_messages,
-    delete_conversation
+    delete_conversation,
+    list_conversation_memories,
+    list_daily_summaries,
+    get_latest_conversation_memory,
+    get_daily_summary_by_date,
 )
 from services.gemini_router import GeminiService
 from services.chat_action_router import chat_action_router
 
 
 router = APIRouter()
+
+AUTO_CONVERSATION_SUMMARY_INTERVAL = 20
+SEOUL_TZ = ZoneInfo("Asia/Seoul")
 
 # Pydantic 스키마
 class ConversationCreate(BaseModel):
@@ -35,6 +43,34 @@ class MessageResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class ConversationMemoryResponse(BaseModel):
+    id: str
+    conversation_id: int
+    user_id: str
+    title: Optional[str] = None
+    content: str
+    created_by: str
+    metadata: Optional[Dict[str, Any]] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    tags: Optional[List[str]] = None
+    importance: Optional[int] = None
+
+
+class DailySummaryResponse(BaseModel):
+    id: str
+    user_id: str
+    summary_date: date
+    content: str
+    created_by: str
+    metadata: Optional[Dict[str, Any]] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    tags: Optional[List[str]] = None
+    importance: Optional[int] = None
+
 
 class ConversationResponse(BaseModel):
     id: int
@@ -84,6 +120,33 @@ async def get_conversation_messages(conversation_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch messages: {str(e)}")
 
+@router.get("/conversations/{conversation_id}/memories", response_model=List[ConversationMemoryResponse])
+async def get_conversation_memories(conversation_id: int, limit: int = 10):
+    """특정 대화의 요약 메모리 목록 조회"""
+    try:
+        memories = list_conversation_memories(conversation_id, limit=limit)
+        return memories
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch conversation memories: {str(e)}")
+
+@router.get("/summaries/daily", response_model=List[DailySummaryResponse])
+async def get_daily_summaries(user_id: str, limit: int = 7):
+    """사용자의 최근 일일 요약 목록 조회"""
+    if not user_id:
+        raise HTTPException(status_code=400, detail="user_id는 필수입니다.")
+
+    try:
+        summaries = list_daily_summaries(user_id, limit=limit)
+        return summaries
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch daily summaries: {str(e)}")
+
+@router.get("/summaries/daily/latest", response_model=Optional[DailySummaryResponse])
+async def get_latest_daily_summary(user_id: str):
+    """사용자의 최신 일일 요약 조회"""
+    summaries = await get_daily_summaries(user_id=user_id, limit=1)
+    return summaries[0] if summaries else None
+
 @router.post("/conversations/{conversation_id}/messages")
 async def send_message(conversation_id: int, data: MessageCreate):
     """메시지 전송 및 AI 응답 생성"""
@@ -128,16 +191,22 @@ async def generate_ai_response(conversation_id: int, user_message: str) -> tuple
     """AI 응답 생성 - Gemini API 연동"""
     try:
         # 1. 액션 라우터로 의도 파악 및 실행
-        action_result = await chat_action_router.handle(user_message)
+        action_result = await chat_action_router.handle(user_message, conversation_id=conversation_id)
+        # 대화 히스토리 조회
+        messages = get_messages(conversation_id)
+
+        # 자동 요약 트리거
+        auto_events = await _auto_generate_summaries(conversation_id, messages)
+
         if action_result:
-            return _format_action_result(action_result), action_result
+            metadata = dict(action_result)
+            metadata["auto_summaries"] = auto_events
+            metadata["auto_summary_count"] = len(auto_events)
+            return _format_action_result(action_result), metadata
 
         # 2. 일반 대화는 Gemini로 처리
         # GeminiService 인스턴스 생성
         gemini_service = GeminiService()
-
-        # 대화 히스토리 조회
-        messages = get_messages(conversation_id)
 
         # 시스템 프롬프트
         system_instruction = """당신은 Limone AI입니다. 사용자에게 친절하고helpful한 도움을 제공하세요.
@@ -161,19 +230,22 @@ async def generate_ai_response(conversation_id: int, user_message: str) -> tuple
         current_prompt = f"{conversation_history}사용자: {user_message}\nAI:"
 
         # Gemini API 호출
-        response = await gemini_service.generate_text(
+        ai_response = await gemini_service.generate_text(
             prompt=current_prompt,
             system_instruction=system_instruction
         )
 
-        return response, None
+        metadata: Dict[str, Any] = {
+            "auto_summaries": auto_events,
+            "auto_summary_count": len(auto_events),
+        }
 
+        return ai_response, metadata
     except Exception as e:
-        # 오류 발생 시 더미 응답 반환
-        print(f"Gemini API error: {e}")
+        # 오류 발생 시 기본 응답
         fallback_responses = [
-            "죄송해요, 지금은 일시적인 오류가 발생했어요. 다시 시도해주세요! 😅",
-            "AI 응답 생성 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.",
+            "죄송해요, 현재 요청을 처리하지 못했어요. 잠시 후 다시 시도해 주세요!",
+            "앗! 무언가 잘못됐어요. 다시 시도해 보시겠어요?",
             "시스템 점검 중입니다.，稍後 다시 시도해 주세요!"
         ]
         import random
@@ -182,6 +254,41 @@ async def generate_ai_response(conversation_id: int, user_message: str) -> tuple
 
 def _format_action_result(result: Dict[str, Any]) -> str:
     action_type = result.get("type")
+
+    if action_type == "conversation_summary":
+        title = result.get("title") or "대화 요약"
+        summary = result.get("summary")
+        message = result.get("message")
+        if summary:
+            lines = [f"📝 {title}", summary]
+            memory_id = result.get("memory_id")
+            created_at = result.get("created_at")
+            if memory_id:
+                lines.append(f"저장 ID: {memory_id}")
+            if created_at:
+                lines.append(f"생성 시각: {created_at}")
+            return "\n".join(lines)
+        if message:
+            return f"📝 {title}\n{message}"
+        return f"📝 {title}"
+
+    if action_type == "daily_summary":
+        summary_date = result.get("summary_date")
+        summary = result.get("summary")
+        message = result.get("message")
+        header = "📅 일일 요약" + (f" ({summary_date})" if summary_date else "")
+        if summary:
+            lines = [header, summary]
+            record_id = result.get("record_id")
+            created_at = result.get("created_at")
+            if record_id:
+                lines.append(f"저장 ID: {record_id}")
+            if created_at:
+                lines.append(f"생성 시각: {created_at}")
+            return "\n".join(lines)
+        if message:
+            return f"{header}\n{message}"
+        return header
 
     if action_type == "drive_list":
         title = result.get("title", "Google Drive 파일")
@@ -230,3 +337,89 @@ def _format_action_result(result: Dict[str, Any]) -> str:
         return f"⚠️ {result.get('message', '액션 실행 중 오류가 발생했습니다.')}"
 
     return str(result)
+
+
+async def _auto_generate_summaries(conversation_id: int, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    generated: List[Dict[str, Any]] = []
+
+    conversation = get_conversation(conversation_id)
+    if not conversation:
+        return generated
+
+    user_id = conversation.get("user_id", "default_user")
+    message_count = len(messages)
+
+    latest_memory = get_latest_conversation_memory(conversation_id)
+    last_count = None
+    if latest_memory:
+        metadata = _ensure_dict(latest_memory.get("metadata"))
+        last_count = metadata.get("message_count") if isinstance(metadata, dict) else None
+
+    should_conversation_summary = False
+    if message_count >= AUTO_CONVERSATION_SUMMARY_INTERVAL:
+        if last_count is None:
+            should_conversation_summary = True
+        else:
+            if message_count - last_count >= AUTO_CONVERSATION_SUMMARY_INTERVAL:
+                should_conversation_summary = True
+
+    if should_conversation_summary:
+        result = await chat_action_router._handle_conversation_summary(  # pylint: disable=protected-access
+            conversation_id,
+            created_by="auto_trigger",
+            trigger="auto_threshold",
+        )
+        if result and result.get("summary"):
+            generated.append({**result, "auto": True, "auto_trigger": "auto_threshold"})
+
+    # 일일 요약 자동 생성: 하루가 지나고 아직 요약이 없는 경우
+    now_seoul = datetime.now(SEOUL_TZ)
+    yesterday = now_seoul.date() - timedelta(days=1)
+
+    has_messages_yesterday = any(
+        _convert_to_seoul_date(msg.get("created_at")) == yesterday for msg in messages
+    )
+
+    if has_messages_yesterday:
+        existing_daily = get_daily_summary_by_date(user_id, yesterday)
+        if not existing_daily:
+            result = await chat_action_router._handle_daily_summary(  # pylint: disable=protected-access
+                user_message="",
+                conversation_id=conversation_id,
+                created_by="auto_trigger",
+                target_date=yesterday,
+                trigger="auto_missing_daily",
+            )
+            if result and result.get("summary"):
+                generated.append({**result, "auto": True, "auto_trigger": "auto_missing_daily"})
+
+    return generated
+
+
+def _convert_to_seoul_date(value: Any) -> Optional[date]:
+    timestamp = _parse_datetime(value)
+    if not timestamp:
+        return None
+    return timestamp.astimezone(SEOUL_TZ).date()
+
+
+def _parse_datetime(value: Any) -> Optional[datetime]:
+    if isinstance(value, str):
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    if isinstance(value, datetime):
+        return value
+    return None
+
+
+def _ensure_dict(value: Any) -> Dict[str, Any]:
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        try:
+            return json.loads(value)
+        except json.JSONDecodeError:
+            return {}
+    return {}

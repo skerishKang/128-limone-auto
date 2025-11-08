@@ -1,5 +1,10 @@
-import { useState, useRef, useEffect } from 'react';
-import { Message, Conversation } from '../../services/api';
+  import { useState, useRef, useEffect, useMemo } from 'react';
+import {
+  Message,
+  Conversation,
+  ConversationMemory,
+  DailySummary,
+} from '../../services/api';
 import MessageBubble from './MessageBubble';
 import ChatInput from './ChatInput';
 import LoadingSpinner from '../shared/LoadingSpinner';
@@ -26,6 +31,10 @@ export default function ChatContainer({
   const [isMessagesLoading, setIsMessagesLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [memories, setMemories] = useState<ConversationMemory[]>([]);
+  const [isMemoriesLoading, setIsMemoriesLoading] = useState(false);
+  const [latestSummary, setLatestSummary] = useState<DailySummary | null>(null);
+  const [isSummaryLoading, setIsSummaryLoading] = useState(false);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -35,27 +44,28 @@ export default function ChatContainer({
     await handleSendMessage(content);
   };
 
+  const currentConversation = useMemo(
+    () => conversations.find((c) => c.id === conversationId),
+    [conversations, conversationId],
+  );
+
   const fetchMessages = async () => {
     if (!conversationId) return;
 
     setIsMessagesLoading(true);
     setError(null);
     try {
-      // TODO: API에서 메시지 가져오기
-      // const response = await apiService.getMessages(conversationId);
-      // setMessages(response);
-
-      // 더미 데이터 사용 (API 연동 전까지)
-      setMessages([
-        {
-          id: 1,
-          conversationId,
-          role: 'assistant',
-          content: '안녕하세요! Limone AI입니다. 무엇을 도와드릴까요? 😊',
-          created_at: new Date().toISOString(),
-          timestamp: Date.now(),
-        },
-      ]);
+      const response = await apiService.getConversationMessages(conversationId);
+      const normalized = response.map((msg) => ({
+        id: msg.id,
+        conversationId,
+        role: msg.role,
+        content: msg.content,
+        created_at: msg.created_at,
+        timestamp: new Date(msg.created_at).getTime(),
+        metadata: typeof msg.metadata === 'string' ? safeJsonParse(msg.metadata) : msg.metadata,
+      }));
+      setMessages(normalized);
     } catch (err) {
       console.error('Failed to fetch messages:', err);
       setError('메시지를 불러오는데 실패했습니다.');
@@ -64,20 +74,55 @@ export default function ChatContainer({
     }
   };
 
+  const fetchMemories = async () => {
+    if (!conversationId) return;
+
+    setIsMemoriesLoading(true);
+    try {
+      const data = await apiService.getConversationMemories(conversationId, 5);
+      setMemories(data);
+    } catch (err) {
+      console.error('Failed to fetch conversation memories:', err);
+    } finally {
+      setIsMemoriesLoading(false);
+    }
+  };
+
+  const fetchLatestSummary = async () => {
+    const userId = currentConversation?.user_id;
+    if (!userId) {
+      setLatestSummary(null);
+      return;
+    }
+
+    setIsSummaryLoading(true);
+    try {
+      const data = await apiService.getLatestDailySummary(userId);
+      setLatestSummary(data);
+    } catch (err) {
+      console.error('Failed to fetch latest daily summary:', err);
+    } finally {
+      setIsSummaryLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchMessages();
+    fetchMemories();
+    fetchLatestSummary();
   }, [conversationId]);
+
+  useEffect(() => {
+    fetchLatestSummary();
+  }, [currentConversation?.user_id]);
 
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
 
   const handleSendMessage = async (content: string, file?: File) => {
-    // TODO: API로 메시지 전송
-    // const response = await apiService.sendMessage(conversationId, content);
-    // setMessages(prev => [...prev, response]);
+    if (!content.trim()) return;
 
-    // 더미 응답 (API 연동 전까지)
     const userMessage: Message = {
       id: Date.now(),
       conversationId,
@@ -89,32 +134,138 @@ export default function ChatContainer({
 
     setMessages(prev => [...prev, userMessage]);
 
-    // AI 응답 시뮬레이션
-    setTimeout(() => {
-      let aiResponse = '';
-      if (file) {
-        const fileType = file.type;
-        if (fileType.startsWith('image/')) {
-          aiResponse = `🖼️ 이미지를 분석했습니다! "${file.name}" 파일에 대해 AI가 분석한 결과입니다. Gemini 2.5 Flash 비전 모델로 이미지를 확인했습니다.`;
-        } else if (fileType.startsWith('audio/')) {
-          aiResponse = `🎵 오디오 파일을 분석했습니다! "${file.name}" 오디오 내용을 AI가 처리했습니다. Gemini 2.5 Flash 오디오 모델을 사용했습니다.`;
-        } else {
-          aiResponse = `📄 "${file.name}" 파일을 분석했습니다! AI가 문서 내용을 검토하고 요약했습니다.`;
-        }
-      } else {
-        aiResponse = `AI 응답: "${content}"에 대한 답변입니다. Gemini 2.5 Flash 모델을 사용하고 있습니다! 🚀`;
-      }
+    try {
+      await apiService.sendMessage(conversationId, content);
+      await fetchMessages();
+      await fetchMemories();
+      await fetchLatestSummary();
+    } catch (err) {
+      console.error('Failed to send message:', err);
+      setError('메시지를 전송하는 동안 오류가 발생했습니다.');
+    }
+  };
 
-      const aiMessage: Message = {
-        id: Date.now() + 1,
-        conversationId,
-        role: 'assistant',
-        content: aiResponse,
-        created_at: new Date().toISOString(),
-        timestamp: Date.now() + 1,
-      };
-      setMessages(prev => [...prev, aiMessage]);
-    }, 1000);
+  const safeJsonParse = (value?: string | null) => {
+    if (!value) return null;
+    try {
+      return JSON.parse(value);
+    } catch {
+      return value;
+    }
+  };
+
+  const renderFollowups = (metadata: any) => {
+    const parsed = safeJsonParse(metadata);
+    const followups = Array.isArray(parsed?.followups) ? parsed.followups : [];
+    if (followups.length === 0) return null;
+
+    return (
+      <div className="mt-2 space-y-1">
+        <p className="text-xs font-semibold text-gray-600">추천 액션</p>
+        <div className="flex flex-wrap gap-2">
+          {followups.map((followup: { label: string; suggestion: string }, idx: number) => (
+            <button
+              key={`${followup.label}-${idx}`}
+              type="button"
+              onClick={() => handleQuickReply(followup.suggestion)}
+              className="px-3 py-1 text-xs bg-blue-50 text-blue-700 rounded-full hover:bg-blue-100 transition-colors"
+            >
+              {followup.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  const renderMemoriesSection = () => {
+    if (!memories.length) return null;
+
+    return (
+      <div className="px-4 pb-2">
+        <div className="bg-white border border-gray-200 rounded-xl shadow-sm">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+            <h3 className="text-sm font-semibold text-gray-800">최근 대화 요약</h3>
+            <button
+              onClick={fetchMemories}
+              className="text-xs text-blue-600 hover:text-blue-700"
+              disabled={isMemoriesLoading}
+            >
+              {isMemoriesLoading ? '새로고침 중...' : '새로고침'}
+            </button>
+          </div>
+          <div className="divide-y divide-gray-100">
+            {memories.map((memory) => (
+              <div key={memory.id} className="px-4 py-3 text-sm text-gray-700 space-y-1">
+                <p className="font-medium text-gray-900">{memory.title || '요약'}</p>
+                <p className="whitespace-pre-wrap leading-relaxed">{memory.content}</p>
+                <div className="flex flex-wrap gap-1 text-xs text-gray-500">
+                  {memory.tags?.map((tag: string) => (
+                    <span key={tag} className="px-2 py-0.5 bg-gray-100 rounded-full">#{tag}</span>
+                  ))}
+                  {memory.importance && (
+                    <span className="px-2 py-0.5 bg-amber-100 rounded-full">
+                      중요도 {memory.importance}
+                    </span>
+                  )}
+                </div>
+                {renderFollowups(memory.metadata)}
+                <p className="text-xs text-gray-400">
+                  {new Date(memory.created_at).toLocaleString('ko-KR')}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderDailySummarySection = () => {
+    if (!latestSummary && !isSummaryLoading) return null;
+
+    return (
+      <div className="px-4 pb-2">
+        <div className="bg-white border border-indigo-200 rounded-xl shadow-sm">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-indigo-100">
+            <h3 className="text-sm font-semibold text-indigo-700">일일 요약</h3>
+            <button
+              onClick={fetchLatestSummary}
+              className="text-xs text-indigo-600 hover:text-indigo-700"
+              disabled={isSummaryLoading}
+            >
+              {isSummaryLoading ? '불러오는 중...' : '새로고침'}
+            </button>
+          </div>
+          <div className="px-4 py-3 text-sm text-gray-700 space-y-2">
+            {latestSummary ? (
+              <>
+                <p className="text-xs text-gray-500">
+                  {new Date(latestSummary.summary_date).toLocaleDateString('ko-KR')}
+                </p>
+                <p className="whitespace-pre-wrap leading-relaxed">{latestSummary.content}</p>
+                <div className="flex flex-wrap gap-1 text-xs text-indigo-500">
+                  {latestSummary.tags?.map((tag: string) => (
+                    <span key={tag} className="px-2 py-0.5 bg-indigo-50 rounded-full">#{tag}</span>
+                  ))}
+                  {latestSummary.importance && (
+                    <span className="px-2 py-0.5 bg-purple-100 rounded-full">
+                      중요도 {latestSummary.importance}
+                    </span>
+                  )}
+                </div>
+                {renderFollowups(latestSummary.metadata)}
+                <p className="text-xs text-gray-400">
+                  생성: {new Date(latestSummary.created_at).toLocaleString('ko-KR')}
+                </p>
+              </>
+            ) : (
+              <p className="text-sm text-gray-500">요약 데이터가 없습니다.</p>
+            )}
+          </div>
+        </div>
+      </div>
+    );
   };
 
   if (isMessagesLoading) {
@@ -126,7 +277,7 @@ export default function ChatContainer({
             {conversationId ? (
               <EditableTitle
                 title={conversations.find(c => c.id === conversationId)?.title || '새 대화'}
-                onUpdate={(newTitle) => onUpdateTitle(conversationId, newTitle)}
+                onUpdate={(newTitle: string) => onUpdateTitle(conversationId, newTitle)}
                 className="text-base"
               />
             ) : (
@@ -204,6 +355,8 @@ export default function ChatContainer({
         </div>
 
         {/* 메시지 영역 - 독립 스크롤 */}
+        {renderDailySummarySection()}
+        {renderMemoriesSection()}
         {(!messages || messages.length === 0) ? (
           <div className="flex-1 flex items-center justify-center overflow-hidden">
             <div className="text-center text-gray-500 p-4">

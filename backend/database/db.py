@@ -1,116 +1,72 @@
-import sqlite3
-from pathlib import Path
-from contextlib import contextmanager
-from datetime import datetime
+from __future__ import annotations
 
-DB_PATH = Path("../data/limone-auto.db")
+import json
+from datetime import datetime, date, time, timedelta, timezone
+from typing import Any, Dict, List, Optional
 
-def init_db():
-    """데이터베이스 초기화 및 테이블 생성"""
-    DB_PATH.parent.mkdir(exist_ok=True)
+from postgrest import APIError
 
-    with get_db() as conn:
-        # 대화 테이블
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS conversations (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id TEXT DEFAULT 'default_user',
-                title TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
+from .supabase_client import supabase
 
-        # 메시지 테이블
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS messages (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                conversation_id INTEGER,
-                role TEXT CHECK(role IN ('user', 'assistant', 'system')) NOT NULL,
-                content TEXT NOT NULL,
-                metadata TEXT,  -- JSON 형태로 추가 정보 저장
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (conversation_id) REFERENCES conversations(id)
-            )
-        """)
 
-        # 파일 테이블
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS files (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                message_id INTEGER,
-                filename TEXT NOT NULL,
-                filepath TEXT NOT NULL,
-                file_type TEXT,
-                file_size INTEGER,
-                processed BOOLEAN DEFAULT 0,
-                result TEXT,  -- AI 분석 결과
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (message_id) REFERENCES messages(id)
-            )
-        """)
+def init_db() -> None:
+    """Supabase는 이미 스키마가 생성되어 있으므로 추가 작업이 필요하지 않습니다."""
+    return None
 
-        # 외부 서비스 연동 테이블
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS integrations (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                service_name TEXT UNIQUE NOT NULL,
-                access_token TEXT,
-                refresh_token TEXT,
-                expires_at TIMESTAMP,
-                is_active BOOLEAN DEFAULT 1,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
 
-        print("[OK] Database initialized successfully")
-
-@contextmanager
-def get_db():
-    """데이터베이스 연결 컨텍스트 매니저"""
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    try:
-        yield conn
-        conn.commit()
-    except Exception as e:
-        conn.rollback()
-        raise e
-    finally:
-        conn.close()
+def _handle_response(response) -> List[Dict[str, Any]]:
+    if response.error:
+        error = response.error
+        if isinstance(error, APIError):
+            raise RuntimeError(f"Supabase 오류: {error.message}") from error
+        raise RuntimeError(f"Supabase 오류: {error}")
+    return response.data or []
 
 def create_conversation(title: str = "New Chat", user_id: str = "default_user"):
-    """새 대화 생성"""
-    with get_db() as conn:
-        cursor = conn.execute(
-            "INSERT INTO conversations (title, user_id) VALUES (?, ?)",
-            (title, user_id)
-        )
-        return cursor.lastrowid
+    response = (
+        supabase
+        .table("conversations")
+        .insert({"title": title, "user_id": user_id})
+        .select("id")
+        .execute()
+    )
+    data = _handle_response(response)
+    if not data:
+        raise RuntimeError("대화 생성에 실패했습니다.")
+    return data[0]["id"]
 
 def get_conversation(conversation_id: int):
-    """대화 조회"""
-    with get_db() as conn:
-        return conn.execute(
-            "SELECT * FROM conversations WHERE id = ?",
-            (conversation_id,)
-        ).fetchone()
+    response = (
+        supabase
+        .table("conversations")
+        .select("*")
+        .eq("id", conversation_id)
+        .limit(1)
+        .execute()
+    )
+    data = _handle_response(response)
+    return data[0] if data else None
 
 def list_conversations(user_id: str = "default_user", limit: int = 50):
-    """대화 목록 조회"""
-    with get_db() as conn:
-        return conn.execute(
-            """
-            SELECT c.*, COUNT(m.id) as message_count
-            FROM conversations c
-            LEFT JOIN messages m ON c.id = m.conversation_id
-            WHERE c.user_id = ?
-            GROUP BY c.id
-            ORDER BY c.created_at DESC
-            LIMIT ?
-            """,
-            (user_id, limit)
-        ).fetchall()
+    response = (
+        supabase
+        .table("conversations")
+        .select("id,title,user_id,created_at,messages(count)")
+        .eq("user_id", user_id)
+        .order("created_at", desc=True)
+        .limit(limit)
+        .execute()
+    )
+    data = _handle_response(response)
+    conversations: List[Dict[str, Any]] = []
+    for item in data:
+        message_count = 0
+        messages_info = item.pop("messages", None)
+        if isinstance(messages_info, list) and messages_info:
+            message_count = messages_info[0].get("count", 0) or 0
+        item["message_count"] = message_count
+        conversations.append(item)
+    return conversations
 
 def add_message(
     conversation_id: int,
@@ -118,28 +74,218 @@ def add_message(
     content: str,
     metadata: dict = None
 ):
-    """메시지 추가"""
-    with get_db() as conn:
-        cursor = conn.execute(
-            """
-            INSERT INTO messages (conversation_id, role, content, metadata)
-            VALUES (?, ?, ?, ?)
-            """,
-            (conversation_id, role, content, str(metadata) if metadata else None)
-        )
-        return cursor.lastrowid
+    payload: Dict[str, Any] = {
+        "conversation_id": conversation_id,
+        "role": role,
+        "content": content,
+    }
+    if metadata is not None:
+        payload["metadata"] = metadata
+
+    response = (
+        supabase
+        .table("messages")
+        .insert(payload)
+        .select("id")
+        .execute()
+    )
+    data = _handle_response(response)
+    if not data:
+        raise RuntimeError("메시지 저장에 실패했습니다.")
+    return data[0]["id"]
 
 def get_messages(conversation_id: int):
-    """대화의 모든 메시지 조회"""
-    with get_db() as conn:
-        return conn.execute(
-            """
-            SELECT * FROM messages
-            WHERE conversation_id = ?
-            ORDER BY created_at ASC
-            """,
-            (conversation_id,)
-        ).fetchall()
+    response = (
+        supabase
+        .table("messages")
+        .select("*")
+        .eq("conversation_id", conversation_id)
+        .order("created_at", desc=False)
+        .execute()
+    )
+    return _handle_response(response)
+
+
+def save_conversation_memory(
+    conversation_id: int,
+    user_id: str,
+    content: str,
+    title: Optional[str] = None,
+    created_by: str = "user_command",
+    metadata: Optional[Dict[str, Any]] = None,
+    tags: Optional[List[str]] = None,
+    importance: Optional[int] = None,
+):
+    payload: Dict[str, Any] = {
+        "conversation_id": conversation_id,
+        "user_id": user_id,
+        "content": content,
+        "created_by": created_by,
+    }
+    if title:
+        payload["title"] = title
+    if metadata is not None:
+        payload["metadata"] = metadata
+    if tags is not None:
+        payload["tags"] = tags
+    if importance is not None:
+        payload["importance"] = importance
+
+    response = (
+        supabase
+        .table("conversation_memories")
+        .insert(payload)
+        .select("*")
+        .execute()
+    )
+    data = _handle_response(response)
+    if not data:
+        raise RuntimeError("대화 메모리 저장에 실패했습니다.")
+    return data[0]
+
+
+def list_conversation_memories(conversation_id: int, limit: int = 10):
+    response = (
+        supabase
+        .table("conversation_memories")
+        .select("*")
+        .eq("conversation_id", conversation_id)
+        .order("created_at", desc=True)
+        .limit(limit)
+        .execute()
+    )
+    return _handle_response(response)
+
+
+def get_latest_conversation_memory(conversation_id: int):
+    response = (
+        supabase
+        .table("conversation_memories")
+        .select("*")
+        .eq("conversation_id", conversation_id)
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    data = _handle_response(response)
+    return data[0] if data else None
+
+
+def update_conversation_memory(
+    memory_id: str,
+    updates: Dict[str, Any],
+):
+    if not updates:
+        return None
+
+    response = (
+        supabase
+        .table("conversation_memories")
+        .update(updates)
+        .eq("id", memory_id)
+        .select("*")
+        .execute()
+    )
+    data = _handle_response(response)
+    return data[0] if data else None
+
+
+def save_daily_summary(
+    user_id: str,
+    summary_date: date,
+    content: str,
+    created_by: str = "user_command",
+    metadata: Optional[Dict[str, Any]] = None,
+    tags: Optional[List[str]] = None,
+    importance: Optional[int] = None,
+):
+    payload: Dict[str, Any] = {
+        "user_id": user_id,
+        "summary_date": summary_date.isoformat(),
+        "content": content,
+        "created_by": created_by,
+    }
+    if metadata is not None:
+        payload["metadata"] = metadata
+    if tags is not None:
+        payload["tags"] = tags
+    if importance is not None:
+        payload["importance"] = importance
+
+    response = (
+        supabase
+        .table("daily_summaries")
+        .insert(payload)
+        .select("*")
+        .execute()
+    )
+    data = _handle_response(response)
+    if not data:
+        raise RuntimeError("일일 요약 저장에 실패했습니다.")
+    return data[0]
+
+
+def list_daily_summaries(user_id: str, limit: int = 7):
+    response = (
+        supabase
+        .table("daily_summaries")
+        .select("*")
+        .eq("user_id", user_id)
+        .order("summary_date", desc=True)
+        .limit(limit)
+        .execute()
+    )
+    return _handle_response(response)
+
+
+def get_daily_summary_by_date(user_id: str, summary_date: date):
+    response = (
+        supabase
+        .table("daily_summaries")
+        .select("*")
+        .eq("user_id", user_id)
+        .eq("summary_date", summary_date.isoformat())
+        .limit(1)
+        .execute()
+    )
+    data = _handle_response(response)
+    return data[0] if data else None
+
+
+def update_daily_summary(
+    summary_id: str,
+    updates: Dict[str, Any],
+):
+    if not updates:
+        return None
+
+    response = (
+        supabase
+        .table("daily_summaries")
+        .update(updates)
+        .eq("id", summary_id)
+        .select("*")
+        .execute()
+    )
+    data = _handle_response(response)
+    return data[0] if data else None
+
+
+def get_messages_for_user_on_date(user_id: str, target_date: date):
+    start_dt = datetime.combine(target_date, time.min).replace(tzinfo=timezone.utc)
+    end_dt = start_dt + timedelta(days=1)
+
+    response = (
+        supabase
+        .table("messages")
+        .select("id, conversation_id, role, content, created_at, conversations!inner(id,title)")
+        .gte("created_at", start_dt.isoformat())
+        .lt("created_at", end_dt.isoformat())
+        .eq("conversations.user_id", user_id)
+        .order("created_at", desc=False)
+        .execute()
+    )
+    return _handle_response(response)
 
 def save_file_info(
     message_id: int,
@@ -148,32 +294,50 @@ def save_file_info(
     file_type: str,
     file_size: int
 ):
-    """파일 정보 저장"""
-    with get_db() as conn:
-        cursor = conn.execute(
-            """
-            INSERT INTO files (message_id, filename, filepath, file_type, file_size)
-            VALUES (?, ?, ?, ?, ?)
-            """,
-            (message_id, filename, filepath, file_type, file_size)
-        )
-        return cursor.lastrowid
+    payload = {
+        "message_id": message_id,
+        "filename": filename,
+        "filepath": filepath,
+        "file_type": file_type,
+        "file_size": file_size,
+    }
+    response = (
+        supabase
+        .table("files")
+        .insert(payload)
+        .select("id")
+        .execute()
+    )
+    data = _handle_response(response)
+    if not data:
+        raise RuntimeError("파일 정보 저장에 실패했습니다.")
+    return data[0]["id"]
 
 def get_file_info(file_id: int):
-    """파일 정보 조회"""
-    with get_db() as conn:
-        return conn.execute(
-            "SELECT * FROM files WHERE id = ?",
-            (file_id,)
-        ).fetchone()
+    response = (
+        supabase
+        .table("files")
+        .select("*")
+        .eq("id", file_id)
+        .limit(1)
+        .execute()
+    )
+    data = _handle_response(response)
+    return data[0] if data else None
 
 def update_file_processed(file_id: int, result: str):
-    """파일 처리 완료 업데이트"""
-    with get_db() as conn:
-        conn.execute(
-            "UPDATE files SET processed = 1, result = ? WHERE id = ?",
-            (result, file_id)
-        )
+    payload = {
+        "processed": True,
+        "result": result,
+    }
+    response = (
+        supabase
+        .table("files")
+        .update(payload)
+        .eq("id", file_id)
+        .execute()
+    )
+    _handle_response(response)
 
 def save_integration_token(
     service_name: str,
@@ -181,27 +345,50 @@ def save_integration_token(
     refresh_token: str = None,
     expires_at: datetime = None
 ):
-    """외부 서비스 토큰 저장/업데이트"""
-    with get_db() as conn:
-        conn.execute(
-            """
-            INSERT OR REPLACE INTO integrations
-            (service_name, access_token, refresh_token, expires_at, updated_at)
-            VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-            """,
-            (service_name, access_token, refresh_token, expires_at)
-        )
+    payload: Dict[str, Any] = {
+        "service_name": service_name,
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "expires_at": expires_at.isoformat() if isinstance(expires_at, datetime) else expires_at,
+        "is_active": True,
+    }
+    response = (
+        supabase
+        .table("integrations")
+        .upsert(payload, on_conflict="service_name")
+        .execute()
+    )
+    _handle_response(response)
 
 def get_integration_token(service_name: str):
-    """외부 서비스 토큰 조회"""
-    with get_db() as conn:
-        return conn.execute(
-            "SELECT * FROM integrations WHERE service_name = ? AND is_active = 1",
-            (service_name,)
-        ).fetchone()
+    response = (
+        supabase
+        .table("integrations")
+        .select("*")
+        .eq("service_name", service_name)
+        .eq("is_active", True)
+        .limit(1)
+        .execute()
+    )
+    data = _handle_response(response)
+    return data[0] if data else None
+
 
 def delete_conversation(conversation_id: int):
-    """대화 삭제 (모든 관련 메시지도 삭제)"""
-    with get_db() as conn:
-        conn.execute("DELETE FROM messages WHERE conversation_id = ?", (conversation_id,))
-        conn.execute("DELETE FROM conversations WHERE id = ?", (conversation_id,))
+    response = (
+        supabase
+        .table("messages")
+        .delete()
+        .eq("conversation_id", conversation_id)
+        .execute()
+    )
+    _handle_response(response)
+
+    response = (
+        supabase
+        .table("conversations")
+        .delete()
+        .eq("id", conversation_id)
+        .execute()
+    )
+    _handle_response(response)
