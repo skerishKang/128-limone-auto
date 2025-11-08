@@ -29,7 +29,7 @@ export interface Message {
   content: string;
   created_at: string;
   timestamp?: number;
-  metadata?: string | AttachmentMetadata[] | null;
+  metadata?: unknown;
 }
 
 export interface Conversation {

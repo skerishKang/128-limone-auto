@@ -235,6 +235,7 @@ export function useChatEnhanced() {
         content: response.response || response.message,
         created_at: new Date().toISOString(),
         timestamp: Date.now() + 1,
+        metadata: response.metadata ?? null,
       };
       dispatch({ type: 'ADD_MESSAGE', payload: { sessionId, conversationId, message: aiMessage } });
 

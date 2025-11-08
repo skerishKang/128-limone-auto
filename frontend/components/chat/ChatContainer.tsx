@@ -31,6 +31,10 @@ export default function ChatContainer({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  const handleQuickReply = async (content: string) => {
+    await handleSendMessage(content);
+  };
+
   const fetchMessages = async () => {
     if (!conversationId) return;
 
@@ -210,7 +214,7 @@ export default function ChatContainer({
         ) : (
           <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4">
             {messages.map((message) => (
-              <MessageBubble key={message.id} message={message} />
+              <MessageBubble key={message.id} message={message} onQuickReply={handleQuickReply} />
             ))}
             <div ref={messagesEndRef} />
           </div>

@@ -1,7 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
-from typing import List, Optional, Dict, Any
+import json
 from datetime import datetime
+from typing import List, Optional, Dict, Any
+
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 from database.db import (
     create_conversation,
     get_conversation,
@@ -11,6 +13,7 @@ from database.db import (
     delete_conversation
 )
 from services.gemini_router import GeminiService
+from services.chat_action_router import chat_action_router
 
 
 router = APIRouter()
@@ -93,19 +96,21 @@ async def send_message(conversation_id: int, data: MessageCreate):
         )
 
         # AI 응답 생성 - Gemini API 연동
-        ai_response = await generate_ai_response(conversation_id, data.content)
+        ai_response, metadata = await generate_ai_response(conversation_id, data.content)
         
         # AI 응답 저장
         ai_msg_id = add_message(
             conversation_id=conversation_id,
             role="assistant",
-            content=ai_response
+            content=ai_response,
+            metadata=json.dumps(metadata, ensure_ascii=False) if metadata else None
         )
 
         return {
             "user_message_id": user_msg_id,
             "ai_message_id": ai_msg_id,
-            "response": ai_response
+            "response": ai_response,
+            "metadata": metadata
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to send message: {str(e)}")
@@ -119,9 +124,15 @@ async def delete_chat_conversation(conversation_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to delete conversation: {str(e)}")
 
-async def generate_ai_response(conversation_id: int, user_message: str) -> str:
+async def generate_ai_response(conversation_id: int, user_message: str) -> tuple[str, Optional[Dict[str, Any]]]:
     """AI 응답 생성 - Gemini API 연동"""
     try:
+        # 1. 액션 라우터로 의도 파악 및 실행
+        action_result = await chat_action_router.handle(user_message)
+        if action_result:
+            return _format_action_result(action_result), action_result
+
+        # 2. 일반 대화는 Gemini로 처리
         # GeminiService 인스턴스 생성
         gemini_service = GeminiService()
 
@@ -155,7 +166,7 @@ async def generate_ai_response(conversation_id: int, user_message: str) -> str:
             system_instruction=system_instruction
         )
 
-        return response
+        return response, None
 
     except Exception as e:
         # 오류 발생 시 더미 응답 반환
@@ -166,4 +177,56 @@ async def generate_ai_response(conversation_id: int, user_message: str) -> str:
             "시스템 점검 중입니다.，稍後 다시 시도해 주세요!"
         ]
         import random
-        return random.choice(fallback_responses)
+        return random.choice(fallback_responses), None
+
+
+def _format_action_result(result: Dict[str, Any]) -> str:
+    action_type = result.get("type")
+
+    if action_type == "drive_list":
+        title = result.get("title", "Google Drive 파일")
+        items = result.get("items", [])
+        if not items:
+            return f"📁 {title}\n조건에 맞는 파일을 찾지 못했습니다."
+        lines = [f"📁 {title}"]
+        for item in items:
+            name = item.get("name", "(이름 없음)")
+            link = item.get("webViewLink") or "링크 없음"
+            size = item.get("size")
+            size_text = f" ({size} bytes)" if size else ""
+            lines.append(f"- {name}{size_text}" + (f" → {link}" if link != "링크 없음" else ""))
+        return "\n".join(lines)
+
+    if action_type == "gmail_list":
+        title = result.get("title", "Gmail 메시지")
+        items = result.get("items", [])
+        if not items:
+            return f"📧 {title}\n표시할 메시지가 없습니다."
+        lines = [f"📧 {title}"]
+        for item in items:
+            subject = item.get("subject") or "(제목 없음)"
+            sender = item.get("from") or "발신자 미상"
+            snippet = item.get("snippet") or "요약 없음"
+            lines.append(f"- {subject} / {sender}\n  {snippet}")
+        return "\n".join(lines)
+
+    if action_type == "calendar_list":
+        title = result.get("title", "다가오는 일정")
+        items = result.get("items", [])
+        if not items:
+            return f"🗓️ {title}\n예정된 일정이 없습니다."
+        lines = [f"🗓️ {title}"]
+        for item in items:
+            summary = item.get("summary") or "(제목 없음)"
+            start = item.get("start") or "시작 시간 미정"
+            end = item.get("end") or "종료 시간 미정"
+            lines.append(f"- {summary} ({start} ~ {end})")
+        return "\n".join(lines)
+
+    if action_type == "auth_required":
+        return f"🔐 {result.get('message', '해당 서비스를 사용하려면 인증이 필요합니다.')}"
+
+    if action_type == "error":
+        return f"⚠️ {result.get('message', '액션 실행 중 오류가 발생했습니다.')}"
+
+    return str(result)

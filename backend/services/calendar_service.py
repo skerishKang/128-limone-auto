@@ -104,9 +104,70 @@ class CalendarService:
 
         return normalized
 
-    async def create_event(self, *args, **kwargs):
-        """캘린더 이벤트 생성 (미구현)."""
-        raise CalendarAPIError("이벤트 생성은 아직 구현되지 않았습니다.")
+    async def create_event(self, summary: str, start: str, end: Optional[str] = None, timezone_str: Optional[str] = None, location: Optional[str] = None, description: Optional[str] = None) -> Dict:
+        """Google Calendar에 이벤트 생성."""
+
+        credentials = self._load_credentials()
+        if not credentials:
+            raise CalendarAuthorizationError("Google Calendar 인증이 필요합니다.")
+
+        if not summary:
+            raise CalendarAPIError("이벤트 제목이 필요합니다.")
+        if not start:
+            raise CalendarAPIError("이벤트 시작 시간이 필요합니다.")
+
+        event_body: Dict[str, Any] = {
+            "summary": summary,
+        }
+
+        if description:
+            event_body["description"] = description
+        if location:
+            event_body["location"] = location
+
+        if timezone_str:
+            event_body["start"] = {
+                "dateTime": start,
+                "timeZone": timezone_str,
+            }
+            event_body["end"] = {
+                "dateTime": end or start,
+                "timeZone": timezone_str,
+            }
+        else:
+            event_body["start"] = {
+                "dateTime": start,
+            }
+            event_body["end"] = {
+                "dateTime": end or start,
+            }
+
+        try:
+            service = build(
+                "calendar",
+                "v3",
+                credentials=credentials,
+                cache_discovery=False
+            )
+            created_event = (
+                service.events()
+                .insert(
+                    calendarId=self.calendar_id,
+                    body=event_body
+                )
+                .execute()
+            )
+        except HttpError as exc:  # pragma: no cover - 네트워크 오류는 런타임에서 확인
+            logger.exception("Google Calendar 이벤트 생성 실패")
+            raise CalendarAPIError("Google Calendar 이벤트 생성 중 오류가 발생했습니다.") from exc
+
+        return {
+            "id": created_event.get("id"),
+            "summary": created_event.get("summary"),
+            "start": created_event.get("start"),
+            "end": created_event.get("end"),
+            "htmlLink": created_event.get("htmlLink"),
+        }
 
     async def get_today_events(self) -> int:
         """오늘 일정 수."""

@@ -5,13 +5,8 @@ export interface Message {
   role: 'user' | 'assistant' | 'system';
   content: string;
   created_at: string;
-  metadata?: {
-    source?: string;
-    model?: string;
-    tokens?: number;
-    attachments?: Attachment[];
-  };
-  timestamp: number; // for sorting
+  metadata?: any;
+  timestamp?: number; // for sorting
 }
 
 export interface Conversation {

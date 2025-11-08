@@ -144,6 +144,58 @@ class DriveService:
 
         return normalized
 
+    async def search_files(self, query: str, page_size: int = 20) -> List[Dict]:
+        """쿼리로 Google Drive 파일 검색."""
+
+        credentials = self._load_credentials()
+        if not credentials:
+            raise DriveAuthorizationError("Google Drive 인증이 필요합니다.")
+
+        try:
+            service = build(
+                "drive",
+                "v3",
+                credentials=credentials,
+                cache_discovery=False
+            )
+            q = (
+                f"name contains '{query.replace('\'', '\\'')}'"
+                " and trashed = false"
+            )
+            response = (
+                service.files()
+                .list(
+                    q=q,
+                    pageSize=page_size,
+                    orderBy="modifiedTime desc",
+                    fields=(
+                        "files(id,name,mimeType,size,createdTime,modifiedTime,"
+                        "webViewLink,webContentLink,iconLink)"
+                    )
+                )
+                .execute()
+            )
+        except HttpError as exc:  # pragma: no cover - 네트워크 오류는 런타임에서 확인
+            logger.exception("Google Drive API 파일 검색 실패")
+            raise DriveAPIError("Google Drive 파일 검색 중 오류가 발생했습니다.") from exc
+
+        files = response.get("files", [])
+        normalized: List[Dict] = []
+        for item in files:
+            normalized.append({
+                "id": item.get("id"),
+                "name": item.get("name"),
+                "mimeType": item.get("mimeType"),
+                "size": int(item.get("size", 0)) if item.get("size") else 0,
+                "createdTime": item.get("createdTime"),
+                "modifiedTime": item.get("modifiedTime"),
+                "webViewLink": item.get("webViewLink"),
+                "webContentLink": item.get("webContentLink"),
+                "iconLink": item.get("iconLink"),
+            })
+
+        return normalized
+
     async def upload_file(
         self,
         stream: BinaryIO,
