@@ -496,7 +496,7 @@ class ChatActionRouter:
                 # 마지막 그룹의 텍스트를 검색어로 사용
                 groups = [g for g in match.groups() if g]
                 if groups:
-                    return groups[-1].strip(" .,!?"")
+                    return groups[-1].strip(" .,!?")
 
         # 키워드 제거 후 남은 텍스트가 있다면 사용
         cleaned = user_message
@@ -533,6 +533,39 @@ class ChatActionRouter:
             missing_fields.append("subject")
         if not parsed["body"]:
             missing_fields.append("body")
+
+        if missing_fields:
+            return {
+                "type": "gmail_send_prompt",
+                "title": "Gmail 메시지 보내기",
+                "message": "메시지를 보낼 수 없습니다. 다음 필드를 확인해주세요: " + ", ".join(missing_fields),
+                "detected": parsed,
+            }
+
+        try:
+            await gmail_service.send_message(parsed["recipients"], parsed["subject"], parsed["body"])
+            return {
+                "type": "gmail_send_result",
+                "title": "Gmail 메시지 보내기 성공",
+                "message": "메시지를 성공적으로 보냈습니다.",
+            }
+        except GmailAuthorizationError as exc:
+            return {
+                "type": "auth_required",
+                "message": str(exc),
+            }
+        except GmailAPIError as exc:
+            logger.exception("Gmail send failed")
+            return {
+                "type": "error",
+                "message": str(exc),
+            }
+
+    async def _handle_calendar_list(self) -> Dict[str, Any]:
+        events = await calendar_service.get_events(max_results=10)
+        items = []
+        for event in events:
+            items.append({
                 "id": event.get("id"),
                 "summary": event.get("summary"),
                 "start": event.get("start"),

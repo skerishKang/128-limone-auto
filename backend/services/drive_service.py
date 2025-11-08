@@ -158,8 +158,9 @@ class DriveService:
                 credentials=credentials,
                 cache_discovery=False
             )
+            escaped_query = query.replace("'", "''")
             q = (
-                f"name contains '{query.replace('\'', '\\'')}'"
+                f"name contains '{escaped_query}'"
                 " and trashed = false"
             )
             response = (
