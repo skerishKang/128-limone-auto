@@ -205,7 +205,9 @@ class GmailService:
             logger.exception("Gmail 라벨 조회 실패")
             raise GmailAPIError("Gmail 라벨 정보를 가져오지 못했습니다.") from exc
 
-        return labels.get("messagesUnread", 0)
+        # Gmail 웹 UI는 기본적으로 스레드(대화) 단위로 미열람 숫자를 표시하므로
+        # threadsUnread 값을 우선 사용하고, 없을 경우 messagesUnread를 폴백으로 사용합니다.
+        return labels.get("threadsUnread") or labels.get("messagesUnread", 0)
 
     # =============================================================
     # 내부 헬퍼 메서드

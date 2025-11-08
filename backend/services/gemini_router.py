@@ -1,5 +1,6 @@
 import os
 import json
+import logging
 from typing import Optional, Dict, Any, List
 from pathlib import Path
 import google.generativeai as genai
@@ -12,6 +13,8 @@ GEMINI_API_KEYS = {
     "image": os.getenv("GEMINI_API_KEY_IMAGE", "AIzaSyAM4iGMQX6K11I9yRO89cixLAfZB5HX9mg"),
 }
 
+logger = logging.getLogger(__name__)
+
 class GeminiService:
     """
     Google Gemini AI 서비스 (실제 API 연동)
@@ -23,8 +26,16 @@ class GeminiService:
         genai.configure(api_key=api_key)
         
         # Initialize models
-        self.text_model = genai.GenerativeModel('gemini-2.5-flash')
-        self.pro_vision_model = genai.GenerativeModel('gemini-2.5-flash')
+        self.text_model = genai.GenerativeModel(
+            "gemini-1.5-flash",
+            generation_config={
+                "temperature": 0.7,
+                "top_p": 0.8,
+                "top_k": 40,
+                "max_output_tokens": 2048,
+            },
+        )
+        self.pro_vision_model = genai.GenerativeModel("gemini-1.5-flash")
         
     async def generate_text(self, prompt: str, system_instruction: str = None) -> str:
         """
@@ -36,11 +47,14 @@ class GeminiService:
             
             # Generate response
             response = self.text_model.generate_content(full_prompt)
-            
-            return response.text
+
+            if not hasattr(response, "text") or not response.text:
+                return self._get_fallback_response(prompt)
+
+            return response.text.strip()
         except Exception as e:
             # Fallback to mock response if API fails
-            print(f"Gemini API error: {e}")
+            logger.exception("Gemini generate_text 실패")
             return self._get_fallback_response(prompt)
     
     async def analyze_file(self, file_path: str, file_type: str) -> Dict[str, Any]:
@@ -159,30 +173,52 @@ class GeminiService:
             }
         }
     
-    async def chat_completion(self, messages: List[Dict]) -> str:
-        """
-        채팅 기반 텍스트 생성
-        """
+    async def chat_completion(
+        self,
+        messages: List[Dict[str, str]],
+        system_instruction: Optional[str] = None,
+    ) -> str:
+        """대화 히스토리를 기반으로 Gemini 응답 생성"""
         try:
-            # Format messages for Gemini
-            conversation_history = "\n".join([
-                f"{msg['role']}: {msg['content']}" 
-                for msg in messages[-10:]  # Last 10 messages
-            ])
-            
-            prompt = f"""
-            다음 대화의 맥락을 고려하여 적절한 응답을 제공해주세요:
-            
-            {conversation_history}
-            
-            Assistant:
-            """
-            
-            response = await self.generate_text(prompt)
-            return response
-        except Exception as e:
-            print(f"Chat completion error: {e}")
-            return self._get_fallback_response("대화")
+            if not messages:
+                raise ValueError("대화 메시지가 비어 있습니다.")
+
+            contents = []
+            for message in messages[-12:]:  # 최근 12개만 사용
+                role = message.get("role", "user")
+                content = (message.get("content") or "").strip()
+                if not content:
+                    continue
+
+                parts = [{"text": content}]
+                if role == "assistant":
+                    contents.append({"role": "model", "parts": parts})
+                else:
+                    contents.append({"role": "user", "parts": parts})
+
+            if not contents:
+                raise ValueError("유효한 대화 히스토리가 없습니다.")
+
+            response = self.text_model.generate_content(
+                contents,
+                system_instruction=system_instruction,
+            )
+
+            if not hasattr(response, "text") or not response.text:
+                last_user_message = next(
+                    (msg.get("content", "") for msg in reversed(messages) if msg.get("role") == "user"),
+                    "대화"
+                )
+                return self._get_fallback_response(last_user_message)
+
+            return response.text.strip()
+        except Exception as exc:
+            logger.exception("Gemini chat_completion 실패")
+            last_user_message = next(
+                (msg.get("content", "") for msg in reversed(messages) if msg.get("role") == "user"),
+                "대화"
+            )
+            return self._get_fallback_response(last_user_message)
     
     def _extract_key_points(self, text: str) -> List[str]:
         """텍스트에서 핵심 포인트 추출"""
