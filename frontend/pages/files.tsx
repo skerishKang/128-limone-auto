@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import FileUpload from '../components/shared/FileUpload';
-import { apiService } from '../services/api';
+import { apiService, type FileAnalysisResponse } from '../services/api';
 import LoadingSpinner from '../components/shared/LoadingSpinner';
 import ErrorMessage from '../components/shared/ErrorMessage';
 
@@ -8,7 +8,7 @@ export default function FilePage() {
   const [files, setFiles] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [uploadResult, setUploadResult] = useState<any>(null);
+  const [uploadResult, setUploadResult] = useState<FileAnalysisResponse | null>(null);
 
   const loadFiles = async () => {
     try {
@@ -23,7 +23,7 @@ export default function FilePage() {
     }
   };
 
-  const handleUploadComplete = (result: any) => {
+  const handleUploadComplete = (result: FileAnalysisResponse) => {
     setUploadResult(result);
     loadFiles(); // 파일 목록 새로고침
   };
@@ -70,12 +70,76 @@ export default function FilePage() {
             <h2 className="text-xl font-semibold text-gray-800 mb-4">
               업로드 결과
             </h2>
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-              <p className="text-green-800">{uploadResult.result}</p>
-              <div className="mt-2 text-sm text-green-600">
-                <p>파일명: {uploadResult.filename}</p>
-                <p>크기: {(uploadResult.size / 1024).toFixed(2)} KB</p>
+            <div className="space-y-4">
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <p className="text-green-800 font-semibold">{uploadResult.message}</p>
+                <div className="mt-2 text-sm text-green-600 space-y-1">
+                  <p>원본 파일명: {uploadResult.file.original_name}</p>
+                  <p>저장 파일명: {uploadResult.file.stored_name}</p>
+                  <p>카테고리: {uploadResult.file.category.toUpperCase()}</p>
+                  <p>크기: {(uploadResult.file.size / 1024).toFixed(2)} KB</p>
+                </div>
               </div>
+
+              {uploadResult.analysis.summary && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <h3 className="text-sm font-bold text-yellow-800 mb-2">AI 요약</h3>
+                  <p className="text-sm text-yellow-900 whitespace-pre-wrap">
+                    {uploadResult.analysis.summary}
+                  </p>
+                  {uploadResult.analysis.key_points && uploadResult.analysis.key_points.length > 0 && (
+                    <ul className="mt-3 space-y-1 text-sm text-yellow-800 list-disc list-inside">
+                      {uploadResult.analysis.key_points.map((point, idx) => (
+                        <li key={idx}>{point}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+
+              {uploadResult.drive_upload && (
+                <div className={`rounded-lg p-4 border ${uploadResult.drive_upload.success ? 'border-blue-200 bg-blue-50' : 'border-red-200 bg-red-50'}`}>
+                  <h3 className="text-sm font-bold mb-2">
+                    {uploadResult.drive_upload.success ? 'Google Drive 업로드 완료' : 'Google Drive 업로드 실패'}
+                  </h3>
+                  {uploadResult.drive_upload.success ? (
+                    <div className="space-y-1 text-sm text-blue-800">
+                      <p>Drive 파일명: {uploadResult.drive_upload.name}</p>
+                      {uploadResult.drive_upload.webViewLink && (
+                        <p>
+                          <a
+                            href={uploadResult.drive_upload.webViewLink}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-blue-600 underline"
+                          >
+                            웹에서 보기
+                          </a>
+                        </p>
+                      )}
+                      {uploadResult.drive_upload.webContentLink && (
+                        <p>
+                          <a
+                            href={uploadResult.drive_upload.webContentLink}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-blue-600 underline"
+                          >
+                            다운로드 링크
+                          </a>
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-sm text-red-700 space-y-1">
+                      <p>{uploadResult.drive_upload.error || '알 수 없는 오류가 발생했습니다.'}</p>
+                      {uploadResult.drive_upload.requires_auth && (
+                        <p className="font-medium">다시 연동한 후 업로드를 시도해주세요.</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}

@@ -14,6 +14,14 @@ export const getWebSocketUrl = (clientId: string): string => {
   return `${protocol}//${host}/ws/chat/${clientId}`;
 };
 
+export interface AttachmentMetadata {
+  type: 'file' | 'image' | 'link';
+  name: string;
+  url?: string;
+  size?: number;
+  mimeType?: string;
+}
+
 export interface Message {
   id: number;
   conversationId?: number;
@@ -21,7 +29,7 @@ export interface Message {
   content: string;
   created_at: string;
   timestamp?: number;
-  metadata?: string | null;
+  metadata?: string | AttachmentMetadata[] | null;
 }
 
 export interface Conversation {
@@ -36,6 +44,36 @@ export interface Conversation {
 
 export interface CalendarEventsResponse {
   items: any[];
+}
+
+export interface FileAnalysisResponse {
+  success: boolean;
+  message: string;
+  file: {
+    stored_name: string;
+    original_name: string;
+    mime_type?: string;
+    size: number;
+    category: string;
+    path: string;
+  };
+  analysis: {
+    summary?: string;
+    content_type?: string;
+    key_points: string[];
+    metadata?: Record<string, any>;
+    raw: Record<string, any>;
+  };
+  summary_path?: string | null;
+  drive_upload?: {
+    success: boolean;
+    file_id?: string;
+    name?: string;
+    webViewLink?: string;
+    webContentLink?: string;
+    requires_auth?: boolean;
+    error?: string;
+  } | null;
 }
 
 class ApiService {
@@ -129,11 +167,11 @@ class ApiService {
   }
 
   // Files API
-  async uploadFile(file: File): Promise<any> {
+  async uploadFile(file: File): Promise<FileAnalysisResponse> {
     const formData = new FormData();
     formData.append('file', file);
 
-    return this.request('/api/files/upload', {
+    return this.request<FileAnalysisResponse>('/api/files/upload', {
       method: 'POST',
       body: formData,
       headers: {},
@@ -146,7 +184,6 @@ class ApiService {
       body: JSON.stringify(options),
     });
   }
-
   async getFiles(): Promise<any[]> {
     return this.request('/api/files/list');
   }

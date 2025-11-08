@@ -20,7 +20,30 @@ export default function ChatInput({ onSendMessage, placeholder = '메시지를 �
       if (withFile) {
         // 파일 업로드 후 메시지 전송
         const uploadResult = await uploadFile(withFile);
-        onSendMessage(message.trim() || '파일 분석해주세요', withFile);
+
+        const summary = uploadResult?.analysis?.summary;
+        const category = uploadResult?.file?.category;
+        const driveInfo = uploadResult?.drive_upload;
+
+        let content = message.trim();
+        if (!content) {
+          if (summary) {
+            content = `AI 요약: ${summary}`;
+          } else {
+            content = `파일 분석 완료 (${category?.toUpperCase() || '파일'})`;
+          }
+        }
+
+        if (driveInfo?.success && driveInfo.webViewLink) {
+          content += `\nDrive 저장됨: ${driveInfo.webViewLink}`;
+        } else if (driveInfo && !driveInfo.success) {
+          content += `\nDrive 업로드 실패: ${driveInfo.error || '알 수 없는 오류'}`;
+          if (driveInfo.requires_auth) {
+            content += ' (다시 인증이 필요합니다)';
+          }
+        }
+
+        onSendMessage(content, withFile);
         setMessage('');
       } else {
         onSendMessage(message.trim());

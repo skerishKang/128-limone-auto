@@ -1,11 +1,11 @@
 import { useState, useCallback } from 'react';
-import { apiService } from '../services/api';
+import { apiService, type FileAnalysisResponse } from '../services/api';
 
 export function useFileUpload() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [uploadResult, setUploadResult] = useState<any>(null);
+  const [uploadResult, setUploadResult] = useState<FileAnalysisResponse | null>(null);
 
   const uploadFile = useCallback(async (file: File) => {
     try {
