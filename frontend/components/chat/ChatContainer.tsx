@@ -1,9 +1,10 @@
-  import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import {
   Message,
   Conversation,
   ConversationMemory,
   DailySummary,
+  apiService,
 } from '../../services/api';
 import MessageBubble from './MessageBubble';
 import ChatInput from './ChatInput';

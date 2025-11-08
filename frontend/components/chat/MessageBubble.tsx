@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState, FormEvent, ReactNode } from 'react';
 import { Message } from '../../services/api';
+import GmailSendPromptCard from './cards/GmailSendPromptCard';
+import CalendarCreatePromptCard from './cards/CalendarCreatePromptCard';
 
 interface MessageBubbleProps {
   message: Message;
