@@ -101,16 +101,6 @@ async def list_messages(
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
 
 
-@router.get("/messages/{message_id}", summary="Gmail 메시지 상세", response_model=GmailMessageDetail)
-async def get_message(message_id: str):
-    try:
-        return await gmail_service.get_message(message_id=message_id)
-    except GmailAuthorizationError as exc:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
-    except GmailAPIError as exc:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
-
-
 @router.post("/messages/send", summary="Gmail 메시지 전송")
 async def send_message(payload: SendEmailRequest):
     try:
@@ -133,6 +123,16 @@ async def unread_count():
     try:
         count = await gmail_service.get_unread_count()
         return {"unread": count}
+    except GmailAuthorizationError as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
+    except GmailAPIError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+
+
+@router.get("/messages/{message_id}", summary="Gmail 메시지 상세", response_model=GmailMessageDetail)
+async def get_message(message_id: str):
+    try:
+        return await gmail_service.get_message(message_id=message_id)
     except GmailAuthorizationError as exc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
     except GmailAPIError as exc:
