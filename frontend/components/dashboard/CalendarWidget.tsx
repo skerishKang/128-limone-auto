@@ -107,7 +107,7 @@ export default function CalendarWidget() {
         </div>
       )}
       collapsedSummary={<span className="text-xs text-gray-500">오늘 일정 {todayCount}개</span>}
-      className="h-full flex flex-col"
+      className="flex flex-col"
     >
       <div className="space-y-2">
         <div className="flex items-center justify-between">
