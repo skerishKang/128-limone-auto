@@ -368,11 +368,11 @@ export default function DesktopLayout() {
           3. 우측: 채팅창 (고정 너비 - 모바일 해상도 375px)
       ======================================== */}
       <main
-        className="flex flex-col bg-white shadow-sm min-w-0"
+        className="flex flex-col bg-white shadow-sm"
         style={{
-          flexGrow: chatWidth === 0 ? 1 : 0,  // chatWidth가 0이면 전체, 아니면 고정
-          width: chatWidth > 0 ? `${chatWidth}px` : 'auto',  // 고정 너비 적용
-          display: (chatFlex === 0 && chatWidth === 0) ? 'none' : 'flex'  // 둘 다 0이면 숨김
+          flexGrow: chatWidth === 0 ? 0 : 0,
+          width: chatWidth > 0 ? `${chatWidth}px` : '375px',
+          minWidth: '375px'
         }}
       >
         {/* 채팅 컨테이너 - 독립 스크롤 */}

@@ -136,7 +136,14 @@ class ApiService {
     return this.request('/api/files/upload', {
       method: 'POST',
       body: formData,
-      headers: {}, // Don't set Content-Type for FormData
+      headers: {},
+    });
+  }
+
+  async confirmFileSummary(options: { filePath: string; decision: 'save' | 'discard'; fileName?: string; mimeType?: string }): Promise<any> {
+    return this.request('/api/files/summary/confirm', {
+      method: 'POST',
+      body: JSON.stringify(options),
     });
   }
 
