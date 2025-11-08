@@ -90,7 +90,9 @@ class FileProcessor:
                 "file_path": str(file_path),
                 "file_size": file_size,
                 "file_type": validation["file_ext"],
-                "mime_type": validation["mime_type"]
+                "mime_type": validation["mime_type"],
+                "content_hash": self.get_file_hash(str(file_path)),
+                "created_at": timestamp,
             }
         except Exception as e:
             raise ValueError(f"파일 저장 실패: {str(e)}")
@@ -131,6 +133,7 @@ class FileProcessor:
                 "file_size": file_size,
             },
             "analysis": analysis_result.get("analysis", {}),
+            "raw_result": analysis_result,
             "message": f"파일 '{file_path_obj.name}' 분석 완료"
         }
     
