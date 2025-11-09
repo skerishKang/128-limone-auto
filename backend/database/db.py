@@ -15,13 +15,13 @@ def init_db() -> None:
 
 
 def _handle_response(response) -> List[Dict[str, Any]]:
-    if response.error:
-        error = response.error
+    error = getattr(response, "error", None)
+    if error:
         if isinstance(error, APIError):
             raise RuntimeError(f"Supabase 오류: {error.message}") from error
         raise RuntimeError(f"Supabase 오류: {error}")
 
-    data = response.data
+    data = getattr(response, "data", None)
     if data is None:
         return []
     if isinstance(data, list):

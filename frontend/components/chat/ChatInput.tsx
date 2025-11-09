@@ -1,22 +1,25 @@
-import { useState, KeyboardEvent, useRef, ChangeEvent } from 'react';
+import { useState, KeyboardEvent, useRef, ChangeEvent, useEffect, useCallback } from 'react';
 import { useFileUpload } from '../../hooks/useFileUpload';
 
 interface ChatInputProps {
   onSendMessage: (content: string, file?: File) => void;
   placeholder?: string;
   disabled?: boolean;
+  onRegisterExternalDrop?: (handler: (file: File) => Promise<void>) => (() => void) | void;
 }
 
-export default function ChatInput({ onSendMessage, placeholder = '메시지를 입력하세요...', disabled = false }: ChatInputProps) {
+export default function ChatInput({ onSendMessage, placeholder = '메시지를 입력하세요...', disabled = false, onRegisterExternalDrop }: ChatInputProps) {
   const [message, setMessage] = useState('');
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { isUploading, uploadFile } = useFileUpload();
+  const { isUploading, uploadFile, error: uploadError } = useFileUpload();
+  const [localError, setLocalError] = useState<string | null>(null);
 
-  const handleSend = async (withFile?: File) => {
+  const handleSend = useCallback(async (withFile?: File) => {
     if ((!message.trim() && !withFile) || disabled) return;
 
     console.log('[ChatInput] 전송 시도', { hasMessage: Boolean(message.trim()), hasFile: Boolean(withFile) });
+    setLocalError(null);
 
     try {
       if (withFile) {
@@ -52,9 +55,11 @@ export default function ChatInput({ onSendMessage, placeholder = '메시지를 �
         setMessage('');
       }
     } catch (error) {
+      const messageText = error instanceof Error ? error.message : '파일/메시지 전송 중 오류가 발생했습니다.';
       console.error('Upload failed:', error);
+      setLocalError(messageText);
     }
-  };
+  }, [disabled, message, onSendMessage]);
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.nativeEvent.isComposing) {
@@ -67,9 +72,14 @@ export default function ChatInput({ onSendMessage, placeholder = '메시지를 �
     }
   };
 
-  const handleFileSelect = async (file: File) => {
-    await handleSend(file);
-  };
+  const handleFileSelect = useCallback(async (file: File) => {
+    try {
+      await handleSend(file);
+    } catch (error) {
+      const messageText = error instanceof Error ? error.message : '파일 전송 중 오류가 발생했습니다.';
+      setLocalError(messageText);
+    }
+  }, [handleSend]);
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -102,6 +112,13 @@ export default function ChatInput({ onSendMessage, placeholder = '메시지를 �
   const openFileDialog = () => {
     fileInputRef.current?.click();
   };
+
+  useEffect(() => {
+    if (!onRegisterExternalDrop) return;
+    return onRegisterExternalDrop(async (file: File) => {
+      await handleFileSelect(file);
+    });
+  }, [handleFileSelect, onRegisterExternalDrop]);
 
   return (
     <div
@@ -212,6 +229,11 @@ export default function ChatInput({ onSendMessage, placeholder = '메시지를 �
       {dragActive && (
         <div className="mt-2 text-center text-blue-600 text-sm font-medium">
           📁 파일을 여기에 놓으세요
+        </div>
+      )}
+      {(localError || uploadError) && (
+        <div className="mt-2 text-sm text-red-600">
+          {localError || uploadError}
         </div>
       )}
     </div>

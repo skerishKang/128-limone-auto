@@ -108,7 +108,7 @@ export default function DashboardPanel({ columns = 2 }: DashboardPanelProps) {
       {/* 상단 요약 및 상태 카드 - 위젯 스타일과 통일 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-4">
         {/* 요약 카드 */}
-        <div className="bg-white rounded-xl p-4 border border-gray-100 hover:shadow-lg transition-shadow border-l-4 border-blue-500">
+        <div className="bg-white rounded-xl p-4 border-2 border-blue-500/80 bg-blue-50/30 shadow-sm transition-shadow">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-semibold text-gray-800 mb-2 flex items-center gap-2">
