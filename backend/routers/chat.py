@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import sys
@@ -152,47 +153,52 @@ async def get_latest_daily_summary(user_id: str):
     return summaries[0] if summaries else None
 
 @router.post("/conversations/{conversation_id}/messages")
-async def send_message(conversation_id: int, data: MessageCreate):
+def send_message(conversation_id: int, data: MessageCreate):
     """메시지 전송 및 AI 응답 생성"""
-    # 요청 진입 지점 확인
-    print("=" * 50, file=sys.stderr, flush=True)
-    print(f"[DEBUG] send_message 호출됨: {conversation_id}", file=sys.stderr, flush=True)
-    print(f"[DEBUG] 요청 본문: {data.content[:50]}...", file=sys.stderr, flush=True)
-    print(f"[DEBUG] 현재 시간: {time.time()}", file=sys.stderr, flush=True)
-    print("=" * 50, file=sys.stderr, flush=True)
+    print(f"\n{'=' * 60}", flush=True)
+    print(f"[CHAT] 메시지 전송 시작 - conversation_id: {conversation_id}", flush=True)
+    print(f"[CHAT] 내용: {data.content[:50]}...", flush=True)
+    print(f"[CHAT] 타임스탬프: {time.time()}", flush=True)
+    print(f"{'=' * 60}\n", flush=True)
 
     try:
-        print("[DEBUG] add_message 호출 전", file=sys.stderr, flush=True)
+        print("[CHAT] DB: add_message 호출...", flush=True)
         user_msg_id = add_message(
             conversation_id=conversation_id,
             role="user",
             content=data.content
         )
-        print(f"[DEBUG] add_message 완료: {user_msg_id}", file=sys.stderr, flush=True)
+        print(f"[CHAT] DB: 사용자 메시지 저장 완료 (ID: {user_msg_id})", flush=True)
 
-        print("[DEBUG] generate_ai_response 호출 전", file=sys.stderr, flush=True)
-        ai_response, metadata = await generate_ai_response(conversation_id, data.content)
-        print("[DEBUG] generate_ai_response 완료", file=sys.stderr, flush=True)
+        print("[CHAT] DB: get_messages 호출...", flush=True)
+        messages = get_messages(conversation_id)
+        print(f"[CHAT] DB: 메시지 {len(messages)}개 조회 완료", flush=True)
 
-        print("[DEBUG] AI 응답 저장 시작", file=sys.stderr, flush=True)
+        print("[CHAT] AI 응답 생성 시작...", flush=True)
+        ai_response, metadata = generate_ai_response(conversation_id, data.content, messages)
+        print(f"[CHAT] AI 응답 생성 완료 (길이: {len(ai_response)})", flush=True)
+
+        print("[CHAT] DB: AI 메시지 저장...", flush=True)
         ai_msg_id = add_message(
             conversation_id=conversation_id,
             role="assistant",
             content=ai_response,
             metadata=json.dumps(metadata, ensure_ascii=False) if metadata else None
         )
-        print(f"[DEBUG] AI 응답 저장 완료: {ai_msg_id}", file=sys.stderr, flush=True)
+        print(f"[CHAT] DB: AI 메시지 저장 완료 (ID: {ai_msg_id})", flush=True)
 
-        return {
+        result = {
             "user_message_id": user_msg_id,
             "ai_message_id": ai_msg_id,
             "response": ai_response,
             "metadata": metadata
         }
+        print(f"[CHAT] 응답 반환: {result}\n", flush=True)
+        return result
     except Exception as e:
-        print(f"[DEBUG] 예외 발생: {e}", file=sys.stderr, flush=True)
+        print(f"[CHAT] 예외 발생: {e}", flush=True)
         import traceback
-        traceback.print_exc(file=sys.stderr)
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to send message: {str(e)}")
 
 @router.delete("/conversations/{conversation_id}")
@@ -204,37 +210,40 @@ async def delete_chat_conversation(conversation_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to delete conversation: {str(e)}")
 
-async def generate_ai_response(conversation_id: int, user_message: str) -> tuple[str, Optional[Dict[str, Any]]]:
+def generate_ai_response(
+    conversation_id: int,
+    user_message: str,
+    messages: Optional[List[Dict[str, Any]]] = None,
+) -> tuple[str, Optional[Dict[str, Any]]]:
     """AI 응답 생성 - Gemini API 연동"""
-    print("-" * 50, file=sys.stderr, flush=True)
-    print(f"[DEBUG] generate_ai_response 시작: {conversation_id}", file=sys.stderr, flush=True)
-    print("-" * 50, file=sys.stderr, flush=True)
+    print(f"\n[AI] generate_ai_response 시작 - conversation_id: {conversation_id}", flush=True)
 
     try:
-        print("[DEBUG] chat_action_router.handle 호출 전", file=sys.stderr, flush=True)
-        action_result = await chat_action_router.handle(user_message, conversation_id=conversation_id)
-        print(f"[DEBUG] chat_action_router.handle 반환: {action_result}", file=sys.stderr, flush=True)
+        print("[AI] chat_action_router.handle 호출...", flush=True)
+        action_result = asyncio.run(chat_action_router.handle(user_message, conversation_id=conversation_id))
+        print(f"[AI] chat_action_router.handle 반환: {action_result}", flush=True)
 
-        print("[DEBUG] get_messages 호출 전", file=sys.stderr, flush=True)
-        messages = get_messages(conversation_id)
-        print(f"[DEBUG] get_messages 완료: {len(messages)}개", file=sys.stderr, flush=True)
+        if messages is None:
+            print("[AI] DB: get_messages 호출 (내부)", flush=True)
+            messages = get_messages(conversation_id)
+        print(f"[AI] 메시지 히스토리 확보: {len(messages)}개", flush=True)
 
-        print("[DEBUG] _auto_generate_summaries 호출 전", file=sys.stderr, flush=True)
-        auto_events = await _auto_generate_summaries(conversation_id, messages)
-        print(f"[DEBUG] _auto_generate_summaries 완료: {len(auto_events)}개", file=sys.stderr, flush=True)
+        print("[AI] 자동 요약 트리거 호출...", flush=True)
+        auto_events = asyncio.run(_auto_generate_summaries(conversation_id, messages))
+        print(f"[AI] 자동 요약 결과: {len(auto_events)}개", flush=True)
 
         if action_result:
-            print("[DEBUG] action_result 있음 → Gemini 호출 안 함", file=sys.stderr, flush=True)
+            print("[AI] 액션 결과 존재 → Gemini 호출 생략", flush=True)
             metadata = dict(action_result)
             metadata["auto_summaries"] = auto_events
             metadata["auto_summary_count"] = len(auto_events)
-            return _format_action_result(action_result), metadata
+            formatted = _format_action_result(action_result)
+            print(f"[AI] 액션 결과 포맷 완료 (길이: {len(formatted)})", flush=True)
+            return formatted, metadata
 
-        print("[DEBUG] action_result 없음 → Gemini 호출 시도", file=sys.stderr, flush=True)
-        # GeminiService 인스턴스 생성
+        print("[AI] GeminiService 인스턴스 생성...", flush=True)
         gemini_service = GeminiService()
 
-        # 시스템 프롬프트
         system_instruction = """당신은 Limone AI입니다. 사용자에게 친절하고helpful한 도움을 제공하세요.
 다음 특징을 가지세요:
 - 친근하고 전문적인 톤으로 대화
@@ -242,24 +251,23 @@ async def generate_ai_response(conversation_id: int, user_message: str) -> tuple
 - 질문에 대한 명확한 답변 제공
 - Limone 프로젝트의 모든 기능에 대해 잘 알고 있음"""
 
-        # 대화 히스토리를 프롬프트로 구성
         conversation_history = ""
-        for msg in messages[-10:]:  # 최근 10개 메시지만 사용 (토큰 절약)
-            role = msg['role']
-            content = msg['content']
+        for msg in messages[-10:]:  # 최근 10개 메시지만 사용해 토큰 절약
+            role = msg.get('role')
+            content = msg.get('content')
             if role == 'user':
                 conversation_history += f"사용자: {content}\n"
             elif role == 'assistant':
                 conversation_history += f"AI: {content}\n"
 
-        # 현재 사용자 메시지 추가
         current_prompt = f"{conversation_history}사용자: {user_message}\nAI:"
 
-        # Gemini API 호출
-        ai_response = await gemini_service.generate_text(
+        print("[AI] Gemini.generate_text 호출...", flush=True)
+        ai_response = asyncio.run(gemini_service.generate_text(
             prompt=current_prompt,
             system_instruction=system_instruction
-        )
+        ))
+        print(f"[AI] Gemini 응답 완료 (길이: {len(ai_response)})", flush=True)
 
         metadata: Dict[str, Any] = {
             "auto_summaries": auto_events,
@@ -268,14 +276,18 @@ async def generate_ai_response(conversation_id: int, user_message: str) -> tuple
 
         return ai_response, metadata
     except Exception as e:
-        # 오류 발생 시 기본 응답
+        print(f"[AI] 예외 발생: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
         fallback_responses = [
             "죄송해요, 현재 요청을 처리하지 못했어요. 잠시 후 다시 시도해 주세요!",
             "앗! 무언가 잘못됐어요. 다시 시도해 보시겠어요?",
             "시스템 점검 중입니다.，稍後 다시 시도해 주세요!"
         ]
         import random
-        return random.choice(fallback_responses), None
+        fallback = random.choice(fallback_responses)
+        print("[AI] 폴백 응답 반환", flush=True)
+        return fallback, None
 
 
 def _format_action_result(result: Dict[str, Any]) -> str:

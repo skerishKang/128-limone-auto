@@ -20,7 +20,12 @@ interface DriveFile {
   webViewLink?: string;
 }
 
-export default function DriveWidget() {
+interface DriveWidgetProps {
+  onSummaryUpdate?: (summary: { fileCount: number }) => void;
+  refreshToken?: number;
+}
+
+export default function DriveWidget({ onSummaryUpdate, refreshToken }: DriveWidgetProps) {
   const [storageInfo, setStorageInfo] = useState<StorageInfo>({ used: 0, total: 0, percent: 0 });
   const [fileCount, setFileCount] = useState(0);
   const [driveFiles, setDriveFiles] = useState<DriveFile[]>([]);
@@ -62,13 +67,17 @@ export default function DriveWidget() {
         setStorageInfo({ used: 0, total: totalGB, percent: 0 });
         setFileCount(0);
       }
+      onSummaryUpdate?.({ fileCount: files.length });
     } catch (err) {
       console.error('Drive 정보 로드 실패:', err);
       setError(err instanceof Error ? err.message : 'Drive 정보를 불러오지 못했습니다.');
+      setDriveFiles([]);
+      setFileCount(0);
+      onSummaryUpdate?.({ fileCount: 0 });
     } finally {
       setIsLoading(false);
     }
-  }, [storageInfo.total]);
+  }, [storageInfo.total, onSummaryUpdate]);
 
   const checkAuthStatus = useCallback(async () => {
     try {
@@ -80,20 +89,26 @@ export default function DriveWidget() {
         await loadDriveInfo();
       } else {
         setIsLoading(false);
+        setDriveFiles([]);
+        setFileCount(0);
+        onSummaryUpdate?.({ fileCount: 0 });
       }
     } catch (err) {
       console.error('Drive 인증 상태 확인 실패:', err);
       setError(err instanceof Error ? err.message : 'Drive 인증 정보를 확인하지 못했습니다.');
       setIsAuthorized(false);
       setIsLoading(false);
+      setDriveFiles([]);
+      setFileCount(0);
+      onSummaryUpdate?.({ fileCount: 0 });
     } finally {
       setIsCheckingAuth(false);
     }
-  }, [loadDriveInfo]);
+  }, [loadDriveInfo, onSummaryUpdate]);
 
   useEffect(() => {
-    checkAuthStatus();
-  }, [checkAuthStatus]);
+    void checkAuthStatus();
+  }, [checkAuthStatus, refreshToken]);
 
   const handleRefresh = () => {
     if (isAuthorized) {

@@ -17,7 +17,12 @@ interface GmailMessage {
 
 const MAX_RECENT_MESSAGES = 3;
 
-export default function GmailWidget() {
+interface GmailWidgetProps {
+  onSummaryUpdate?: (summary: { unread: number }) => void;
+  refreshToken?: number;
+}
+
+export default function GmailWidget({ onSummaryUpdate, refreshToken }: GmailWidgetProps) {
   const [messages, setMessages] = useState<GmailMessage[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isAuthorized, setIsAuthorized] = useState(false);
@@ -36,16 +41,19 @@ export default function GmailWidget() {
       ]);
 
       setMessages(Array.isArray(list) ? list : []);
-      setUnreadCount(unread?.unread ?? 0);
+      const unreadValue = unread?.unread ?? 0;
+      setUnreadCount(unreadValue);
+      onSummaryUpdate?.({ unread: unreadValue });
     } catch (err) {
       console.error('Gmail 목록 로드 실패:', err);
       setError(err instanceof Error ? err.message : 'Gmail 데이터를 불러오지 못했습니다.');
       setMessages([]);
       setUnreadCount(0);
+      onSummaryUpdate?.({ unread: 0 });
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [onSummaryUpdate]);
 
   const checkAuthStatus = useCallback(async () => {
     try {
@@ -56,20 +64,25 @@ export default function GmailWidget() {
       setIsAuthorized(authorized);
       if (authorized) {
         await loadMessages();
+      } else {
+        setUnreadCount(0);
+        onSummaryUpdate?.({ unread: 0 });
       }
     } catch (err) {
       console.error('Gmail 인증 상태 확인 실패:', err);
       setError(err instanceof Error ? err.message : 'Gmail 인증 정보를 확인하지 못했습니다.');
       setIsAuthorized(false);
+      setUnreadCount(0);
+      onSummaryUpdate?.({ unread: 0 });
     } finally {
       setIsCheckingAuth(false);
       setIsLoading(false);
     }
-  }, [loadMessages]);
+  }, [loadMessages, onSummaryUpdate]);
 
   useEffect(() => {
-    checkAuthStatus();
-  }, [checkAuthStatus]);
+    void checkAuthStatus();
+  }, [checkAuthStatus, refreshToken]);
 
   const handleRefresh = async () => {
     if (isAuthorized) {

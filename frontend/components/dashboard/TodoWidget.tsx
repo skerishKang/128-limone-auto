@@ -1,15 +1,20 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { apiService, type TaskItem } from '../../services/api';
 import LoadingSpinner from '../shared/LoadingSpinner';
 
-export default function TodoWidget() {
+interface TodoWidgetProps {
+  onSummaryUpdate?: (summary: { total: number; completed: number }) => void;
+  refreshToken?: number;
+}
+
+export default function TodoWidget({ onSummaryUpdate, refreshToken }: TodoWidgetProps) {
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [newTask, setNewTask] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  const loadTasks = async () => {
+  const loadTasks = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
@@ -21,7 +26,7 @@ export default function TodoWidget() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   const addTask = async () => {
     if (!newTask.trim()) return;
@@ -61,7 +66,13 @@ export default function TodoWidget() {
 
   useEffect(() => {
     void loadTasks();
-  }, []);
+  }, [loadTasks, refreshToken]);
+
+  useEffect(() => {
+    const completedCount = tasks.filter(t => t.completed).length;
+    const totalCount = tasks.length;
+    onSummaryUpdate?.({ total: totalCount, completed: completedCount });
+  }, [tasks, onSummaryUpdate]);
 
   const completedCount = tasks.filter(t => t.completed).length;
   const totalCount = tasks.length;

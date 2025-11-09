@@ -6,21 +6,17 @@ import { useConversations } from '../hooks/useChat';
 import LoadingSpinner from '../components/shared/LoadingSpinner';
 
 export default function MobileLayout() {
-  const { conversations, isLoading, createConversation, updateConversationTitle } = useConversations();
+  const { conversations, isLoading, createConversation, updateConversationTitle, isCreating } = useConversations();
   const [menuOpen, setMenuOpen] = useState(false);
   const [currentConversationId, setCurrentConversationId] = useState<number | null>(null);
-  const [isCreating, setIsCreating] = useState(false);
 
   const handleNewChat = async () => {
     try {
-      setIsCreating(true);
       const newConv = await createConversation();
       setCurrentConversationId(newConv.id);
       setMenuOpen(false);
     } catch (err) {
       console.error('Failed to create conversation:', err);
-    } finally {
-      setIsCreating(false);
     }
   };
 

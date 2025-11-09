@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { apiService, CalendarEventsResponse } from '../../services/api';
 import LoadingSpinner from '../shared/LoadingSpinner';
 import WidgetContainer from './WidgetContainer';
@@ -11,7 +11,12 @@ interface CalendarEventItem {
   htmlLink?: string;
 }
 
-export default function CalendarWidget() {
+interface CalendarWidgetProps {
+  onSummaryUpdate?: (summary: { todayCount: number; total: number }) => void;
+  refreshToken?: number;
+}
+
+export default function CalendarWidget({ onSummaryUpdate, refreshToken }: CalendarWidgetProps) {
   const [events, setEvents] = useState<CalendarEventItem[]>([]);
   const [todayCount, setTodayCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
@@ -62,20 +67,23 @@ export default function CalendarWidget() {
       const response: CalendarEventsResponse = await apiService.getCalendarEvents(10);
       const items = response.items ?? [];
       setEvents(items);
-      setTodayCount(calculateTodayCount(items));
+      const count = calculateTodayCount(items);
+      setTodayCount(count);
+      onSummaryUpdate?.({ todayCount: count, total: items.length });
     } catch (err: any) {
       console.error('캘린더 일정 조회 실패:', err);
       setError(err?.message ?? '일정 조회 중 오류가 발생했습니다.');
       setEvents([]);
       setTodayCount(0);
+      onSummaryUpdate?.({ todayCount: 0, total: 0 });
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [onSummaryUpdate]);
 
   useEffect(() => {
-    loadEvents();
-  }, [loadEvents]);
+    void loadEvents();
+  }, [loadEvents, refreshToken]);
 
   const openCalendar = (url?: string) => {
     if (typeof window === 'undefined') return;

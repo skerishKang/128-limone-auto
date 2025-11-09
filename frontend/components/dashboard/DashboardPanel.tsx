@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import GmailWidget from './GmailWidget';
 import CalendarWidget from './CalendarWidget';
 import TelegramWidget from './TelegramWidget';
@@ -7,79 +7,104 @@ import WeatherWidget from './WeatherWidget';
 import NewsWidget from './NewsWidget';
 import SystemWidget from './SystemWidget';
 import TodoWidget from './TodoWidget';
-import LoadingSpinner from '../shared/LoadingSpinner';
 
 interface DashboardPanelProps {
   columns?: 1 | 2 | 3; // 동적 열 수
+  onStatsChange?: (stats: SummaryStats) => void;
 }
 
-interface DashboardStats {
-  gmail: number;
-  calendar: number;
-  telegram: number;
-  drive: number;
-  tasks: number;
-  weatherTemp: string;
-  weatherCondition: string;
-  aiOnline: boolean;
-  geminiConnected: boolean;
+interface SummaryStats {
+  gmailUnread: number;
+  telegramMessages: number;
+  calendarToday: number;
+  driveFiles: number;
+  tasksTotal: number;
+  tasksCompleted: number;
 }
 
-export default function DashboardPanel({ columns = 2 }: DashboardPanelProps) {
-  const [stats, setStats] = useState<DashboardStats>({
-    gmail: 0,
-    calendar: 0,
-    telegram: 0,
-    drive: 0,
-    tasks: 0,
-    weatherTemp: '18°C',
-    weatherCondition: '맑음',
-    aiOnline: true,
-    geminiConnected: true
-  });
-  const [isLoading, setIsLoading] = useState(true);
+const INITIAL_STATS: SummaryStats = {
+  gmailUnread: 0,
+  telegramMessages: 0,
+  calendarToday: 0,
+  driveFiles: 0,
+  tasksTotal: 0,
+  tasksCompleted: 0,
+};
+
+export default function DashboardPanel({ columns = 2, onStatsChange }: DashboardPanelProps) {
+  const [summaryStats, setSummaryStats] = useState<SummaryStats>(INITIAL_STATS);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+  const [refreshToken, setRefreshToken] = useState(0);
+  const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const refreshAll = async () => {
-    try {
-      setIsLoading(true);
-
-      // 더미 데이터 로드 (실제 API 연동 전까지)
-      await new Promise(resolve => setTimeout(resolve, 500)); // 로딩 시뮬레이션
-
-      // 무작위 데이터로 업데이트 (새로고침 효과를 위한)
-      const randomGmail = Math.floor(Math.random() * 20) + 1;
-      const randomCalendar = Math.floor(Math.random() * 10) + 1;
-      const randomTelegram = Math.floor(Math.random() * 15) + 1;
-      const randomDrive = Math.floor(Math.random() * 100) + 10;
-      const randomTasks = Math.floor(Math.random() * 8) + 1;
-
-      setStats({
-        gmail: randomGmail,
-        calendar: randomCalendar,
-        telegram: randomTelegram,
-        drive: randomDrive,
-        tasks: randomTasks,
-        weatherTemp: `${Math.floor(Math.random() * 15) + 10}°C`,
-        weatherCondition: ['맑음', '구름', '비', '눈'][Math.floor(Math.random() * 4)],
-        aiOnline: Math.random() > 0.1, // 90% 확률로 온라인
-        geminiConnected: Math.random() > 0.05 // 95% 확률로 연결됨
-      });
-
-      setLastUpdated(new Date());
-    } catch (err) {
-      console.error('Failed to refresh dashboard:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const refreshAll = useCallback(() => {
+    setIsRefreshing(true);
+    setRefreshToken((prev) => prev + 1);
+    setLastUpdated(new Date());
+  }, []);
 
   useEffect(() => {
+    if (!isRefreshing) {
+      return () => {
+        if (refreshTimeoutRef.current) {
+          clearTimeout(refreshTimeoutRef.current);
+          refreshTimeoutRef.current = null;
+        }
+      };
+    }
+
+    if (refreshTimeoutRef.current) {
+      clearTimeout(refreshTimeoutRef.current);
+    }
+    refreshTimeoutRef.current = setTimeout(() => {
+      setIsRefreshing(false);
+    }, 500);
+
+    return () => {
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
+        refreshTimeoutRef.current = null;
+      }
+    };
+  }, [isRefreshing]);
+
+  useEffect(() => {
+    // 초기 로드 시 위젯 데이터 확보
     refreshAll();
-    // 5분마다 자동 새로고침
     const interval = setInterval(refreshAll, 300000);
     return () => clearInterval(interval);
+  }, [refreshAll]);
+
+  const handleCalendarSummary = useCallback((summary: { todayCount: number; total: number }) => {
+    setSummaryStats((prev) => ({ ...prev, calendarToday: summary.todayCount }));
   }, []);
+
+  const handleTelegramSummary = useCallback((summary: { recentCount: number }) => {
+    setSummaryStats((prev) => ({ ...prev, telegramMessages: summary.recentCount }));
+  }, []);
+
+  const handleTodoSummary = useCallback((summary: { total: number; completed: number }) => {
+    setSummaryStats((prev) => ({
+      ...prev,
+      tasksTotal: summary.total,
+      tasksCompleted: summary.completed,
+    }));
+  }, []);
+
+  const handleGmailSummary = useCallback((summary: { unread: number }) => {
+    setSummaryStats((prev) => ({ ...prev, gmailUnread: summary.unread }));
+  }, []);
+
+  const handleDriveSummary = useCallback((summary: { fileCount: number }) => {
+    setSummaryStats((prev) => ({ ...prev, driveFiles: summary.fileCount }));
+  }, []);
+
+  const notificationsCount = summaryStats.gmailUnread + summaryStats.telegramMessages;
+
+  useEffect(() => {
+    onStatsChange?.(summaryStats);
+  }, [summaryStats, onStatsChange]);
 
   return (
     <div className="h-full bg-white p-3">
@@ -88,7 +113,7 @@ export default function DashboardPanel({ columns = 2 }: DashboardPanelProps) {
         <h2 className="text-sm font-bold text-gray-800">📊 대시보드</h2>
         <button
           onClick={refreshAll}
-          disabled={isLoading}
+          disabled={isRefreshing}
           className="
             text-xs px-2 py-1
             bg-yellow-400 hover:bg-yellow-500
@@ -97,7 +122,7 @@ export default function DashboardPanel({ columns = 2 }: DashboardPanelProps) {
             transition-colors
           "
         >
-          {isLoading ? '⟳' : '🔄'}
+          {isRefreshing ? '⟳' : '🔄'}
         </button>
       </div>
 
@@ -115,10 +140,10 @@ export default function DashboardPanel({ columns = 2 }: DashboardPanelProps) {
                 📊 <span>요약</span>
               </h3>
               <ul className="space-y-1 text-xs text-gray-600">
-                <li>🔔 <span className="font-semibold text-gray-900">{stats.gmail + stats.telegram}</span> 알림</li>
-                <li>📅 <span className="font-semibold text-gray-900">{stats.calendar}</span> 일정</li>
-                <li>📁 <span className="font-semibold text-gray-900">{stats.drive}</span> 파일</li>
-                <li>✅ <span className="font-semibold text-gray-900">{stats.tasks}</span> 할 일</li>
+                <li>🔔 <span className="font-semibold text-gray-900">{notificationsCount}</span> 알림</li>
+                <li>📅 <span className="font-semibold text-gray-900">{summaryStats.calendarToday}</span> 일정</li>
+                <li>📁 <span className="font-semibold text-gray-900">{summaryStats.driveFiles}</span> 파일</li>
+                <li>✅ <span className="font-semibold text-gray-900">{summaryStats.tasksTotal}</span> 할 일</li>
               </ul>
             </div>
             <div className="text-3xl">📈</div>
@@ -134,16 +159,16 @@ export default function DashboardPanel({ columns = 2 }: DashboardPanelProps) {
               </h3>
               <div className="space-y-1">
                 <button className="w-full text-left text-xs text-gray-600 hover:text-gray-900 font-medium">
-                  ➕ 새 일정
+                  📅 새 일정
                 </button>
                 <button className="w-full text-left text-xs text-gray-600 hover:text-gray-900 font-medium">
-                  📧 새 메일
-                </button>
-                <button className="w-full text-left text-xs text-gray-600 hover:text-gray-900 font-medium">
-                  📁 업로드
+                  💬 텔레그램 메시지
                 </button>
                 <button className="w-full text-left text-xs text-gray-600 hover:text-gray-900 font-medium">
                   ✅ 할 일 추가
+                </button>
+                <button className="w-full text-left text-xs text-gray-600 hover:text-gray-900 font-medium">
+                  📧 새 메일
                 </button>
               </div>
             </div>
@@ -160,16 +185,12 @@ export default function DashboardPanel({ columns = 2 }: DashboardPanelProps) {
               </h3>
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <div className={`w-2.5 h-2.5 rounded-full ${stats.aiOnline ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
-                  <p className="text-xs text-gray-600 font-medium">
-                    {stats.aiOnline ? 'AI 온라인' : 'AI 오프라인'}
-                  </p>
+                  <div className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse"></div>
+                  <p className="text-xs text-gray-600 font-medium">AI 온라인</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className={`w-2.5 h-2.5 rounded-full ${stats.geminiConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
-                  <p className="text-xs text-gray-600 font-medium">
-                    {stats.geminiConnected ? 'Gemini 연결됨' : 'Gemini 연결 안됨'}
-                  </p>
+                  <div className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse"></div>
+                  <p className="text-xs text-gray-600 font-medium">Gemini 연결됨</p>
                 </div>
               </div>
             </div>
@@ -186,45 +207,37 @@ export default function DashboardPanel({ columns = 2 }: DashboardPanelProps) {
               </h3>
               <div className="space-y-1 text-xs text-gray-600">
                 <p className="font-medium text-gray-700">서울</p>
-                <p className="text-lg font-bold text-gray-900">{stats.weatherTemp}</p>
-                <p>{stats.weatherCondition}</p>
+                <p className="text-lg font-bold text-gray-900">12°C</p>
+                <p>맑음</p>
               </div>
             </div>
             <div className="text-4xl">
-              {stats.weatherCondition === '맑음' ? '☀️' :
-               stats.weatherCondition === '구름' ? '☁️' :
-               stats.weatherCondition === '비' ? '🌧️' : '❄️'}
+              ☀️
             </div>
           </div>
         </div>
       </div>
 
       {/* 위젯 그리드 - 동적 열 수 */}
-      {isLoading ? (
-        <div className="flex items-center justify-center py-8">
-          <LoadingSpinner size="sm" />
-        </div>
-      ) : (
-        <div className={`grid gap-2 ${
-          columns === 1 ? 'grid-cols-1' :
-          columns === 2 ? 'grid-cols-2' :
-          'grid-cols-3'
-        }`}>
-          {/* 1열(왼쪽): 일정/계획 */}
-          <CalendarWidget />
-          <TelegramWidget />
+      <div className={`grid gap-2 ${
+        columns === 1 ? 'grid-cols-1' :
+        columns === 2 ? 'grid-cols-2' :
+        'grid-cols-3'
+      }`}>
+        {/* 1열(왼쪽): 일정/계획 */}
+        <CalendarWidget onSummaryUpdate={handleCalendarSummary} refreshToken={refreshToken} />
+        <TelegramWidget onSummaryUpdate={handleTelegramSummary} refreshToken={refreshToken} />
 
-          {/* 2열(오른쪽): 실시간 감시 */}
-          <TodoWidget />
-          <GmailWidget />
+        {/* 2열(오른쪽): 실시간 감시 */}
+        <TodoWidget onSummaryUpdate={handleTodoSummary} refreshToken={refreshToken} />
+        <GmailWidget onSummaryUpdate={handleGmailSummary} refreshToken={refreshToken} />
 
-          {/* 기타 위젯들 */}
-          <DriveWidget />
-          <WeatherWidget />
-          <SystemWidget />
-          <NewsWidget />
-        </div>
-      )}
+        {/* 기타 위젯들 */}
+        <DriveWidget onSummaryUpdate={handleDriveSummary} refreshToken={refreshToken} />
+        <WeatherWidget />
+        <SystemWidget />
+        <NewsWidget />
+      </div>
     </div>
   );
 }

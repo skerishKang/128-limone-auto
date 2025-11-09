@@ -24,7 +24,7 @@ class FileProcessor:
             '.pdf', '.doc', '.docx', '.txt', '.md',
             '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp',
             '.mp4', '.avi', '.mov', '.wmv', '.flv',
-            '.mp3', '.wav', '.flac', '.aac',
+            '.mp3', '.wav', '.m4a', '.flac', '.aac', '.ogg',
             '.csv', '.xlsx', '.json', '.xml'
         }
         self.max_file_size = 10 * 1024 * 1024  # 10MB

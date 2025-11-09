@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import ChatContainer from '../components/chat/ChatContainer';
 import DashboardPanel from '../components/dashboard/DashboardPanel';
 import { useConversations } from '../hooks/useChat';
@@ -22,6 +22,22 @@ export default function DesktopLayout() {
   const [autoInitialized, setAutoInitialized] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const isResizing = useRef(false);
+  const [summaryStats, setSummaryStats] = useState({
+    gmailUnread: 0,
+    telegramMessages: 0,
+    calendarToday: 0,
+    driveFiles: 0,
+    tasksTotal: 0,
+    tasksCompleted: 0,
+  });
+
+  const sidebarCounts = useMemo(() => ({
+    gmail: summaryStats.gmailUnread,
+    calendar: summaryStats.calendarToday,
+    telegram: summaryStats.telegramMessages,
+    drive: summaryStats.driveFiles,
+    todo: summaryStats.tasksTotal,
+  }), [summaryStats]);
 
   const handleNewChat = async () => {
     try {
@@ -196,9 +212,11 @@ export default function DesktopLayout() {
             >
               <span className="text-xl">📧</span>
             </div>
-            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
-              5
-            </span>
+            {sidebarCounts.gmail > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full min-w-[1.25rem] h-5 px-1 flex items-center justify-center font-bold">
+                {sidebarCounts.gmail}
+              </span>
+            )}
             {/* 툴팁 - hover시에만 표시 */}
             <div className="absolute left-12 top-0 bg-gray-900 text-white text-xs px-2 py-1 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50">
               Gmail
@@ -213,9 +231,11 @@ export default function DesktopLayout() {
             >
               <span className="text-xl">📅</span>
             </div>
-            <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
-              3
-            </span>
+            {sidebarCounts.calendar > 0 && (
+              <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs rounded-full min-w-[1.25rem] h-5 px-1 flex items-center justify-center font-bold">
+                {sidebarCounts.calendar}
+              </span>
+            )}
             {/* 툴팁 - hover시에만 표시 */}
             <div className="absolute left-12 top-0 bg-gray-900 text-white text-xs px-2 py-1 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50">
               Calendar
@@ -230,9 +250,11 @@ export default function DesktopLayout() {
             >
               <span className="text-xl">💬</span>
             </div>
-            <span className="absolute -top-1 -right-1 bg-blue-400 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
-              8
-            </span>
+            {sidebarCounts.telegram > 0 && (
+              <span className="absolute -top-1 -right-1 bg-blue-400 text-white text-xs rounded-full min-w-[1.25rem] h-5 px-1 flex items-center justify-center font-bold">
+                {sidebarCounts.telegram}
+              </span>
+            )}
             {/* 툴팁 - hover시에만 표시 */}
             <div className="absolute left-12 top-0 bg-gray-900 text-white text-xs px-2 py-1 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50">
               Telegram
@@ -247,9 +269,11 @@ export default function DesktopLayout() {
             >
               <span className="text-xl">📁</span>
             </div>
-            <span className="absolute -top-1 -right-1 bg-green-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold text-xs">
-              48
-            </span>
+            {sidebarCounts.drive > 0 && (
+              <span className="absolute -top-1 -right-1 bg-green-500 text-white text-xs rounded-full min-w-[1.25rem] h-5 px-1 flex items-center justify-center font-bold">
+                {sidebarCounts.drive}
+              </span>
+            )}
             {/* 툴팁 - hover시에만 표시 */}
             <div className="absolute left-12 top-0 bg-gray-900 text-white text-xs px-2 py-1 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50">
               Drive
@@ -294,9 +318,11 @@ export default function DesktopLayout() {
             <div className="w-10 h-10 rounded-lg bg-gray-700 hover:bg-yellow-600 flex items-center justify-center cursor-pointer transition-colors">
               <span className="text-xl">✅</span>
             </div>
-            <span className="absolute -top-1 -right-1 bg-purple-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
-              3
-            </span>
+            {sidebarCounts.todo > 0 && (
+              <span className="absolute -top-1 -right-1 bg-purple-500 text-white text-xs rounded-full min-w-[1.25rem] h-5 px-1 flex items-center justify-center font-bold">
+                {sidebarCounts.todo}
+              </span>
+            )}
             <div className="absolute left-12 top-0 bg-gray-900 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
               Todo
             </div>
@@ -348,7 +374,7 @@ export default function DesktopLayout() {
 
         {/* 대시보드 위젯들 - 독립 스크롤 */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden">
-          <DashboardPanel columns={dashboardColumns} />
+          <DashboardPanel columns={dashboardColumns} onStatsChange={setSummaryStats} />
         </div>
       </div>
 
@@ -367,8 +393,10 @@ export default function DesktopLayout() {
         style={{
           flexGrow: chatWidth === 0 ? chatFlex : 0,
           display: chatFlex === 0 && chatWidth === 0 ? 'none' : 'flex',
-          width: chatWidth > 0 ? `${chatWidth}px` : 'auto',
-          minWidth: chatWidth > 0 ? `${chatWidth}px` : '360px'
+          width: chatWidth > 0 ? `${chatWidth}px` : '480px',
+          minWidth: chatWidth > 0 ? `${chatWidth}px` : '420px',
+          maxWidth: chatWidth > 0 ? `${chatWidth}px` : '560px',
+          flexShrink: 0
         }}
       >
         {/* 채팅 컨테이너 - 독립 스크롤 */}
