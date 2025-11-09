@@ -15,6 +15,16 @@ def _get_api_key(env_name: str, *, required: bool) -> Optional[str]:
     return cleaned
 
 
+def _get_model_name(env_name: str, default: str) -> str:
+    """환경 변수에서 모델 이름을 읽고 기본값을 적용."""
+    value = os.getenv(env_name)
+    if value:
+        cleaned = value.strip()
+        if cleaned:
+            return cleaned
+    return default
+
+
 # Gemini API 설정
 GEMINI_API_KEYS = {
     "main": _get_api_key("GEMINI_API_KEY_MAIN", required=True),
@@ -22,6 +32,9 @@ GEMINI_API_KEYS = {
     "audio": _get_api_key("GEMINI_API_KEY_AUDIO", required=False),
     "image": _get_api_key("GEMINI_API_KEY_IMAGE", required=False),
 }
+
+GEMINI_TEXT_MODEL = _get_model_name("GEMINI_TEXT_MODEL", "gemini-2.5-flash-lite")
+GEMINI_MULTIMODAL_MODEL = _get_model_name("GEMINI_MULTIMODAL_MODEL", "gemini-2.5-flash")
 
 if not logging.getLogger().handlers:
     logging.basicConfig(
@@ -38,14 +51,19 @@ class GeminiService:
     """
     
     def __init__(self):
-        # Configure Gemini
+        # Gemini API 키 및 모델 구성
         api_key = GEMINI_API_KEYS["main"]
         genai.configure(api_key=api_key)
         logger.info("[Gemini] 메인 API 키 로딩 완료 (값은 미표시)")
 
-        # Initialize models
+        self.text_model_name = GEMINI_TEXT_MODEL
+        self.multimodal_model_name = GEMINI_MULTIMODAL_MODEL
+        logger.info("[Gemini] 텍스트 모델 설정: %s", self.text_model_name)
+        logger.info("[Gemini] 멀티모달 모델 설정: %s", self.multimodal_model_name)
+
+        # 텍스트 전용 모델 초기화
         self.text_model = genai.GenerativeModel(
-            "gemini-1.5-flash",
+            self.text_model_name,
             generation_config={
                 "temperature": 0.7,
                 "top_p": 0.8,
@@ -53,29 +71,35 @@ class GeminiService:
                 "max_output_tokens": 2048,
             },
         )
-        self.pro_vision_model = genai.GenerativeModel("gemini-1.5-flash")
+
+        # 멀티모달 모델 초기화 (이미지·문서 분석)
+        self.pro_vision_model = genai.GenerativeModel(self.multimodal_model_name)
         
     async def generate_text(self, prompt: str, system_instruction: str = None) -> str:
         """
         텍스트 생성 - 실제 Gemini API 호출
         """
         try:
-            # Prepare the prompt
+            # 프롬프트 구성
             full_prompt = f"{system_instruction}\n\n{prompt}" if system_instruction else prompt
 
-            # Generate response
-            logger.debug("[Gemini] 텍스트 생성 요청 시작")
+            # Gemini 호출
+            logger.info("[Gemini] 텍스트 생성 호출 → 모델: %s", self.text_model_name)
+            print(f"[Gemini] 텍스트 생성 호출 → 모델: {self.text_model_name}", flush=True)
             response = self.text_model.generate_content(full_prompt)
 
             if not hasattr(response, "text") or not response.text:
-                logger.warning("[Gemini] 응답에 텍스트가 없어 폴백으로 전환")
+                logger.warning("[Gemini] 응답 텍스트 없음 → 폴백 반환")
+                print("[Gemini] 응답 텍스트 없음 → 폴백 반환", flush=True)
                 return self._get_fallback_response(prompt)
 
+            logger.info("[Gemini] 텍스트 생성 성공 (응답 길이: %d)", len(response.text))
+            print(f"[Gemini] 텍스트 생성 성공 (응답 길이: {len(response.text)})", flush=True)
             return response.text.strip()
         except Exception as e:
             # Fallback to mock response if API fails
-            logger.exception("Gemini generate_text 실패")
-            print(f"[Gemini] 텍스트 생성 중 오류 발생: {e}")
+            logger.exception("[Gemini] 텍스트 생성 실패: %s", e)
+            print(f"[Gemini] 텍스트 생성 실패: {e}", flush=True)
             return self._get_fallback_response(prompt)
     
     async def analyze_file(self, file_path: str, file_type: str) -> Dict[str, Any]:
@@ -220,7 +244,8 @@ class GeminiService:
             if not contents:
                 raise ValueError("유효한 대화 히스토리가 없습니다.")
 
-            logger.debug("[Gemini] 대화 생성 요청 시작")
+            logger.debug("[Gemini] 대화 생성 요청 시작 (모델: %s)", self.text_model_name)
+            print(f"[Gemini] 대화 생성 호출 → 모델: {self.text_model_name}")
             response = self.text_model.generate_content(
                 contents,
                 system_instruction=system_instruction,
@@ -253,6 +278,8 @@ class GeminiService:
     
     def _get_fallback_response(self, prompt: str) -> str:
         """API 실패 시 폴백 응답"""
+        logger.info("[Gemini] 폴백 응답 반환")
+        print("[Gemini] 폴백 응답 반환")
         return f"""🤖 AI 분석 결과 (Beta Mode)
 
 **입력 내용**: {prompt[:200]}{'...' if len(prompt) > 200 else ''}

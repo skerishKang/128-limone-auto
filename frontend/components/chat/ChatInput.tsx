@@ -16,6 +16,8 @@ export default function ChatInput({ onSendMessage, placeholder = '메시지를 �
   const handleSend = async (withFile?: File) => {
     if ((!message.trim() && !withFile) || disabled) return;
 
+    console.log('[ChatInput] 전송 시도', { hasMessage: Boolean(message.trim()), hasFile: Boolean(withFile) });
+
     try {
       if (withFile) {
         // 파일 업로드 후 메시지 전송
@@ -54,10 +56,14 @@ export default function ChatInput({ onSendMessage, placeholder = '메시지를 �
     }
   };
 
-  const handleKeyPress = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.nativeEvent.isComposing) {
+      return;
+    }
+
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSend();
+      void handleSend();
     }
   };
 
@@ -126,7 +132,7 @@ export default function ChatInput({ onSendMessage, placeholder = '메시지를 �
           <textarea
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            onKeyPress={handleKeyPress}
+            onKeyDown={handleKeyDown}
             placeholder={placeholder}
             disabled={disabled || isUploading}
             rows={1}

@@ -136,7 +136,9 @@ export default function ChatContainer({
     setMessages(prev => [...prev, userMessage]);
 
     try {
+      console.log('[Chat] 메시지 전송 시작', { conversationId, content });
       await apiService.sendMessage(conversationId, content);
+      console.log('[Chat] 메시지 전송 성공', { conversationId });
       await fetchMessages();
       await fetchMemories();
       await fetchLatestSummary();
