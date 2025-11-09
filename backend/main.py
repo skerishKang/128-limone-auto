@@ -1,3 +1,5 @@
+import time
+
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -84,6 +86,13 @@ async def root():
         "status": "running",
         "docs": "/docs"
     }
+
+
+@app.get("/test-alive")
+async def test_alive():
+    """서버 생존 확인용 엔드포인트"""
+    print("🔥 TEST ALIVE 엔드포인트 호출됨!", flush=True)
+    return {"status": "server is alive", "timestamp": time.time()}
 
 
 @app.get("/auth/google/calendar/callback", summary="Google Calendar OAuth 콜백")

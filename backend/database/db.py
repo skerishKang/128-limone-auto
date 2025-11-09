@@ -20,20 +20,30 @@ def _handle_response(response) -> List[Dict[str, Any]]:
         if isinstance(error, APIError):
             raise RuntimeError(f"Supabase 오류: {error.message}") from error
         raise RuntimeError(f"Supabase 오류: {error}")
-    return response.data or []
+
+    data = response.data
+    if data is None:
+        return []
+    if isinstance(data, list):
+        return data
+    return [data]
 
 def create_conversation(title: str = "New Chat", user_id: str = "default_user"):
     response = (
         supabase
         .table("conversations")
-        .insert({"title": title, "user_id": user_id})
-        .select("id")
+        .insert({"title": title, "user_id": user_id}, returning="representation")
         .execute()
     )
     data = _handle_response(response)
-    if not data:
+    if data:
+        return data[0].get("id")
+
+    # representation을 받아오지 못한 경우 가장 최근 대화를 조회하여 ID 반환
+    conversations = list_conversations(user_id=user_id, limit=1)
+    if not conversations:
         raise RuntimeError("대화 생성에 실패했습니다.")
-    return data[0]["id"]
+    return conversations[0]["id"]
 
 def get_conversation(conversation_id: int):
     response = (
@@ -85,14 +95,27 @@ def add_message(
     response = (
         supabase
         .table("messages")
-        .insert(payload)
-        .select("id")
+        .insert(payload, returning="representation")
         .execute()
     )
     data = _handle_response(response)
-    if not data:
+    if data:
+        return data[0].get("id")
+
+    # representation이 비어 있을 경우 최신 메시지를 조회하여 ID 반환
+    messages = (
+        supabase
+        .table("messages")
+        .select("id")
+        .eq("conversation_id", conversation_id)
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    fetched = _handle_response(messages)
+    if not fetched:
         raise RuntimeError("메시지 저장에 실패했습니다.")
-    return data[0]["id"]
+    return fetched[0]["id"]
 
 def get_messages(conversation_id: int):
     response = (
@@ -134,11 +157,23 @@ def save_conversation_memory(
     response = (
         supabase
         .table("conversation_memories")
-        .insert(payload)
-        .select("*")
+        .insert(payload, returning="representation")
         .execute()
     )
     data = _handle_response(response)
+    if data:
+        return data[0]
+
+    fetched = (
+        supabase
+        .table("conversation_memories")
+        .select("*")
+        .eq("conversation_id", conversation_id)
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    data = _handle_response(fetched)
     if not data:
         raise RuntimeError("대화 메모리 저장에 실패했습니다.")
     return data[0]
@@ -183,7 +218,6 @@ def update_conversation_memory(
         .table("conversation_memories")
         .update(updates)
         .eq("id", memory_id)
-        .select("*")
         .execute()
     )
     data = _handle_response(response)
@@ -215,11 +249,24 @@ def save_daily_summary(
     response = (
         supabase
         .table("daily_summaries")
-        .insert(payload)
-        .select("*")
+        .insert(payload, returning="representation")
         .execute()
     )
     data = _handle_response(response)
+    if data:
+        return data[0]
+
+    fetched = (
+        supabase
+        .table("daily_summaries")
+        .select("*")
+        .eq("user_id", user_id)
+        .eq("summary_date", summary_date.isoformat())
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    data = _handle_response(fetched)
     if not data:
         raise RuntimeError("일일 요약 저장에 실패했습니다.")
     return data[0]
@@ -264,7 +311,6 @@ def update_daily_summary(
         .table("daily_summaries")
         .update(updates)
         .eq("id", summary_id)
-        .select("*")
         .execute()
     )
     data = _handle_response(response)
@@ -304,11 +350,23 @@ def save_file_info(
     response = (
         supabase
         .table("files")
-        .insert(payload)
-        .select("id")
+        .insert(payload, returning="representation")
         .execute()
     )
     data = _handle_response(response)
+    if data:
+        return data[0].get("id")
+
+    fetched = (
+        supabase
+        .table("files")
+        .select("id")
+        .eq("message_id", message_id)
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    data = _handle_response(fetched)
     if not data:
         raise RuntimeError("파일 정보 저장에 실패했습니다.")
     return data[0]["id"]

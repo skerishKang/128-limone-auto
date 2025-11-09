@@ -1,4 +1,7 @@
 import json
+import logging
+import sys
+import time
 from datetime import datetime, date, timedelta
 from typing import List, Optional, Dict, Any
 from zoneinfo import ZoneInfo
@@ -22,6 +25,7 @@ from services.chat_action_router import chat_action_router
 
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 AUTO_CONVERSATION_SUMMARY_INTERVAL = 20
 SEOUL_TZ = ZoneInfo("Asia/Seoul")
@@ -150,24 +154,34 @@ async def get_latest_daily_summary(user_id: str):
 @router.post("/conversations/{conversation_id}/messages")
 async def send_message(conversation_id: int, data: MessageCreate):
     """메시지 전송 및 AI 응답 생성"""
+    # 요청 진입 지점 확인
+    print("=" * 50, file=sys.stderr, flush=True)
+    print(f"[DEBUG] send_message 호출됨: {conversation_id}", file=sys.stderr, flush=True)
+    print(f"[DEBUG] 요청 본문: {data.content[:50]}...", file=sys.stderr, flush=True)
+    print(f"[DEBUG] 현재 시간: {time.time()}", file=sys.stderr, flush=True)
+    print("=" * 50, file=sys.stderr, flush=True)
+
     try:
-        # 사용자 메시지 저장
+        print("[DEBUG] add_message 호출 전", file=sys.stderr, flush=True)
         user_msg_id = add_message(
             conversation_id=conversation_id,
             role="user",
             content=data.content
         )
+        print(f"[DEBUG] add_message 완료: {user_msg_id}", file=sys.stderr, flush=True)
 
-        # AI 응답 생성 - Gemini API 연동
+        print("[DEBUG] generate_ai_response 호출 전", file=sys.stderr, flush=True)
         ai_response, metadata = await generate_ai_response(conversation_id, data.content)
-        
-        # AI 응답 저장
+        print("[DEBUG] generate_ai_response 완료", file=sys.stderr, flush=True)
+
+        print("[DEBUG] AI 응답 저장 시작", file=sys.stderr, flush=True)
         ai_msg_id = add_message(
             conversation_id=conversation_id,
             role="assistant",
             content=ai_response,
             metadata=json.dumps(metadata, ensure_ascii=False) if metadata else None
         )
+        print(f"[DEBUG] AI 응답 저장 완료: {ai_msg_id}", file=sys.stderr, flush=True)
 
         return {
             "user_message_id": user_msg_id,
@@ -176,6 +190,9 @@ async def send_message(conversation_id: int, data: MessageCreate):
             "metadata": metadata
         }
     except Exception as e:
+        print(f"[DEBUG] 예외 발생: {e}", file=sys.stderr, flush=True)
+        import traceback
+        traceback.print_exc(file=sys.stderr)
         raise HTTPException(status_code=500, detail=f"Failed to send message: {str(e)}")
 
 @router.delete("/conversations/{conversation_id}")
@@ -189,22 +206,31 @@ async def delete_chat_conversation(conversation_id: int):
 
 async def generate_ai_response(conversation_id: int, user_message: str) -> tuple[str, Optional[Dict[str, Any]]]:
     """AI 응답 생성 - Gemini API 연동"""
-    try:
-        # 1. 액션 라우터로 의도 파악 및 실행
-        action_result = await chat_action_router.handle(user_message, conversation_id=conversation_id)
-        # 대화 히스토리 조회
-        messages = get_messages(conversation_id)
+    print("-" * 50, file=sys.stderr, flush=True)
+    print(f"[DEBUG] generate_ai_response 시작: {conversation_id}", file=sys.stderr, flush=True)
+    print("-" * 50, file=sys.stderr, flush=True)
 
-        # 자동 요약 트리거
+    try:
+        print("[DEBUG] chat_action_router.handle 호출 전", file=sys.stderr, flush=True)
+        action_result = await chat_action_router.handle(user_message, conversation_id=conversation_id)
+        print(f"[DEBUG] chat_action_router.handle 반환: {action_result}", file=sys.stderr, flush=True)
+
+        print("[DEBUG] get_messages 호출 전", file=sys.stderr, flush=True)
+        messages = get_messages(conversation_id)
+        print(f"[DEBUG] get_messages 완료: {len(messages)}개", file=sys.stderr, flush=True)
+
+        print("[DEBUG] _auto_generate_summaries 호출 전", file=sys.stderr, flush=True)
         auto_events = await _auto_generate_summaries(conversation_id, messages)
+        print(f"[DEBUG] _auto_generate_summaries 완료: {len(auto_events)}개", file=sys.stderr, flush=True)
 
         if action_result:
+            print("[DEBUG] action_result 있음 → Gemini 호출 안 함", file=sys.stderr, flush=True)
             metadata = dict(action_result)
             metadata["auto_summaries"] = auto_events
             metadata["auto_summary_count"] = len(auto_events)
             return _format_action_result(action_result), metadata
 
-        # 2. 일반 대화는 Gemini로 처리
+        print("[DEBUG] action_result 없음 → Gemini 호출 시도", file=sys.stderr, flush=True)
         # GeminiService 인스턴스 생성
         gemini_service = GeminiService()
 
