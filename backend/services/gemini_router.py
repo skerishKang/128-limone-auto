@@ -5,15 +5,32 @@ from typing import Optional, Dict, Any, List
 from pathlib import Path
 import google.generativeai as genai
 
+
+def _get_api_key(env_name: str, *, required: bool) -> Optional[str]:
+    """환경 변수에서 Gemini API 키를 읽고 필요 시 검증."""
+    value = os.getenv(env_name)
+    cleaned = value.strip() if value else None
+    if required and not cleaned:
+        raise RuntimeError(f"환경 변수 '{env_name}'가 설정되어 있지 않습니다.")
+    return cleaned
+
+
 # Gemini API 설정
 GEMINI_API_KEYS = {
-    "main": os.getenv("GEMINI_API_KEY_MAIN", "AIzaSyA_djsQUG0np0xJ_jjSQNPKrAGrzTdGN_w"),
-    "document": os.getenv("GEMINI_API_KEY_DOCUMENT", "AIzaSyAP8A5YjpwqOkHo0YLhXUMdzFubYoWSwMk"),
-    "audio": os.getenv("GEMINI_API_KEY_AUDIO", "AIzaSyCvGfLdGRwUWWBnXtN7LffuWUSOyxy0WKA"),
-    "image": os.getenv("GEMINI_API_KEY_IMAGE", "AIzaSyAM4iGMQX6K11I9yRO89cixLAfZB5HX9mg"),
+    "main": _get_api_key("GEMINI_API_KEY_MAIN", required=True),
+    "document": _get_api_key("GEMINI_API_KEY_DOCUMENT", required=False),
+    "audio": _get_api_key("GEMINI_API_KEY_AUDIO", required=False),
+    "image": _get_api_key("GEMINI_API_KEY_IMAGE", required=False),
 }
 
+if not logging.getLogger().handlers:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    )
+
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 class GeminiService:
     """
@@ -24,7 +41,8 @@ class GeminiService:
         # Configure Gemini
         api_key = GEMINI_API_KEYS["main"]
         genai.configure(api_key=api_key)
-        
+        logger.info("[Gemini] 메인 API 키 로딩 완료 (값은 미표시)")
+
         # Initialize models
         self.text_model = genai.GenerativeModel(
             "gemini-1.5-flash",
@@ -44,17 +62,20 @@ class GeminiService:
         try:
             # Prepare the prompt
             full_prompt = f"{system_instruction}\n\n{prompt}" if system_instruction else prompt
-            
+
             # Generate response
+            logger.debug("[Gemini] 텍스트 생성 요청 시작")
             response = self.text_model.generate_content(full_prompt)
 
             if not hasattr(response, "text") or not response.text:
+                logger.warning("[Gemini] 응답에 텍스트가 없어 폴백으로 전환")
                 return self._get_fallback_response(prompt)
 
             return response.text.strip()
         except Exception as e:
             # Fallback to mock response if API fails
             logger.exception("Gemini generate_text 실패")
+            print(f"[Gemini] 텍스트 생성 중 오류 발생: {e}")
             return self._get_fallback_response(prompt)
     
     async def analyze_file(self, file_path: str, file_type: str) -> Dict[str, Any]:
@@ -199,12 +220,14 @@ class GeminiService:
             if not contents:
                 raise ValueError("유효한 대화 히스토리가 없습니다.")
 
+            logger.debug("[Gemini] 대화 생성 요청 시작")
             response = self.text_model.generate_content(
                 contents,
                 system_instruction=system_instruction,
             )
 
             if not hasattr(response, "text") or not response.text:
+                logger.warning("[Gemini] 대화 응답에 텍스트가 없어 폴백으로 전환")
                 last_user_message = next(
                     (msg.get("content", "") for msg in reversed(messages) if msg.get("role") == "user"),
                     "대화"
@@ -214,6 +237,7 @@ class GeminiService:
             return response.text.strip()
         except Exception as exc:
             logger.exception("Gemini chat_completion 실패")
+            print(f"[Gemini] 대화 생성 중 오류 발생: {exc}")
             last_user_message = next(
                 (msg.get("content", "") for msg in reversed(messages) if msg.get("role") == "user"),
                 "대화"

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, FormEvent, ReactNode } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { Message } from '../../services/api';
 import GmailSendPromptCard from './cards/GmailSendPromptCard';
 import CalendarCreatePromptCard from './cards/CalendarCreatePromptCard';
@@ -156,6 +156,16 @@ export default function MessageBubble({ message, onQuickReply }: MessageBubblePr
     return null;
   };
 
+  const displayTime = useMemo(() => {
+    const date = new Date(message.created_at);
+    return date.toLocaleTimeString('ko-KR', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+      timeZone: 'Asia/Seoul'
+    });
+  }, [message.created_at]);
+
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
       <div className={`
@@ -185,10 +195,7 @@ export default function MessageBubble({ message, onQuickReply }: MessageBubblePr
           text-xs mt-2
           ${isUser ? 'text-gray-700' : 'text-gray-500'}
         `}>
-          {new Date(message.created_at).toLocaleTimeString('ko-KR', {
-            hour: '2-digit',
-            minute: '2-digit'
-          })}
+          {displayTime}
         </div>
       </div>
     </div>

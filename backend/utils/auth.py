@@ -3,11 +3,23 @@ from typing import Optional
 import jwt
 import os
 from datetime import datetime, timedelta
+from dotenv import load_dotenv
 
-# JWT 설정 (실제 환경에서는 환경변수에서 가져와야 함)
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "limone-dev-secret-key-2024")
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7일
+
+load_dotenv()
+
+
+def _get_env_value(name: str) -> str:
+    value = os.getenv(name)
+    if not value:
+        raise RuntimeError(f"환경 변수 '{name}'가 설정되어 있지 않습니다.")
+    return value
+
+
+# JWT 설정
+SECRET_KEY = _get_env_value("JWT_SECRET_KEY")
+ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", str(60 * 24 * 7)))
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     """JWT 액세스 토큰 생성"""
