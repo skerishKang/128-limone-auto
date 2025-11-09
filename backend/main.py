@@ -4,7 +4,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Quer
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
-from routers import chat, files, gmail, calendar, telegram, drive
+from routers import chat, files, gmail, calendar, telegram, drive, tasks
 from database.db import init_db
 import uvicorn
 from services.calendar_service import (
@@ -47,6 +47,7 @@ app.include_router(gmail.router, prefix="/api/gmail", tags=["Gmail"])
 app.include_router(calendar.router, prefix="/api/calendar", tags=["Calendar"])
 app.include_router(telegram.router, prefix="/api/telegram", tags=["Telegram"])
 app.include_router(drive.router, prefix="/api/drive", tags=["Drive"])
+app.include_router(tasks.router, prefix="/api/tasks", tags=["Tasks"])
 
 # WebSocket 연결 관리자
 from websocket.chat_handler import ConnectionManager

@@ -1,81 +1,66 @@
 import { useState, useEffect } from 'react';
-import { apiService } from '../../services/api';
+import { apiService, type TaskItem } from '../../services/api';
 import LoadingSpinner from '../shared/LoadingSpinner';
 
-interface Task {
-  id: string;
-  title: string;
-  completed: boolean;
-  priority: 'low' | 'medium' | 'high';
-  dueDate?: string;
-}
-
 export default function TodoWidget() {
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [newTask, setNewTask] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   const loadTasks = async () => {
     try {
       setIsLoading(true);
-      
-      // 더미 할 일 데이터
-      const mockTasks: Task[] = [
-        {
-          id: '1',
-          title: 'Gemini API 연동 완료',
-          completed: true,
-          priority: 'high'
-        },
-        {
-          id: '2',
-          title: '대시보드 위젯 추가',
-          completed: true,
-          priority: 'medium'
-        },
-        {
-          id: '3',
-          title: '테스트 케이스 작성',
-          completed: false,
-          priority: 'medium'
-        },
-        {
-          id: '4',
-          title: '성능 최적화',
-          completed: false,
-          priority: 'low'
-        }
-      ];
-      
-      setTasks(mockTasks);
+      setError(null);
+      const data = await apiService.getTasks();
+      setTasks(data);
     } catch (err) {
       console.error('Failed to load tasks:', err);
+      setError('할 일을 불러오는 데 실패했습니다.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const addTask = () => {
-    if (newTask.trim()) {
-      const task: Task = {
-        id: Date.now().toString(),
-        title: newTask,
-        completed: false,
-        priority: 'medium'
-      };
-      setTasks([...tasks, task]);
+  const addTask = async () => {
+    if (!newTask.trim()) return;
+    try {
+      setIsSaving(true);
+      setError(null);
+      const created = await apiService.createTask(newTask.trim());
+      setTasks(prev => [...prev, created]);
       setNewTask('');
+    } catch (err) {
+      console.error('Failed to create task:', err);
+      setError('새 할 일을 추가하지 못했습니다.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  const toggleTask = (id: string) => {
-    setTasks(tasks.map(task => 
-      task.id === id ? { ...task, completed: !task.completed } : task
-    ));
+  const toggleTask = async (task: TaskItem) => {
+    try {
+      const updated = await apiService.updateTask(task.id, { completed: !task.completed });
+      setTasks(prev => prev.map(t => (t.id === task.id ? updated : t)));
+    } catch (err) {
+      console.error('Failed to toggle task:', err);
+      setError('할 일 상태를 변경하지 못했습니다.');
+    }
+  };
+
+  const removeTask = async (taskId: string) => {
+    try {
+      await apiService.deleteTask(taskId);
+      setTasks(prev => prev.filter(t => t.id !== taskId));
+    } catch (err) {
+      console.error('Failed to delete task:', err);
+      setError('할 일을 삭제하지 못했습니다.');
+    }
   };
 
   useEffect(() => {
-    loadTasks();
+    void loadTasks();
   }, []);
 
   const completedCount = tasks.filter(t => t.completed).length;
@@ -91,8 +76,13 @@ export default function TodoWidget() {
         {isLoading && <LoadingSpinner size="sm" />}
       </div>
 
+      {error && (
+        <div className="mb-3 text-xs text-red-600 bg-red-50 rounded px-3 py-2">
+          {error}
+        </div>
+      )}
+
       <div className="space-y-3">
-        {/* 진행률 */}
         <div>
           <div className="flex items-center justify-between mb-1">
             <span className="text-xs text-gray-600">진행률</span>
@@ -106,32 +96,34 @@ export default function TodoWidget() {
           </div>
         </div>
 
-        {/* 할 일 목록 */}
-        <div className="space-y-2 max-h-32 overflow-y-auto">
+        <div className="space-y-2 max-h-40 overflow-y-auto">
           {tasks.map((task) => (
             <div
               key={task.id}
-              onClick={() => toggleTask(task.id)}
               className={`
-                flex items-center gap-2 p-2 rounded cursor-pointer
-                ${task.completed ? 'bg-gray-50 opacity-60' : 'hover:bg-gray-50'}
+                flex items-center gap-3 p-2 rounded border cursor-pointer transition-colors
+                ${task.completed ? 'bg-gray-50 border-gray-100 opacity-60' : 'border-gray-100 hover:border-green-400 hover:bg-gray-50'}
               `}
             >
-              <div className={`
-                w-4 h-4 rounded border-2 flex items-center justify-center
-                ${task.completed 
-                  ? 'bg-green-500 border-green-500' 
-                  : 'border-gray-300 hover:border-green-400'
-                }
-              `}>
-                {task.completed && <span className="text-white text-xs">✓</span>}
+              <button
+                onClick={() => toggleTask(task)}
+                className={`
+                  w-4 h-4 rounded border-2 flex items-center justify-center
+                  ${task.completed 
+                    ? 'bg-green-500 border-green-500 text-white' 
+                    : 'border-gray-300 hover:border-green-400'}
+                `}
+              >
+                {task.completed && <span className="text-xs">✓</span>}
+              </button>
+              <div className="flex-1">
+                <p className={`text-sm ${task.completed ? 'line-through text-gray-500' : 'text-gray-800'} whitespace-pre-line`}>
+                  {task.title}
+                </p>
+                {task.due_date && (
+                  <p className="text-[11px] text-gray-400 mt-0.5">마감: {new Date(task.due_date).toLocaleDateString('ko-KR')}</p>
+                )}
               </div>
-              <span className={`
-                text-sm flex-1
-                ${task.completed ? 'line-through text-gray-500' : 'text-gray-800'}
-              `}>
-                {task.title}
-              </span>
               <span className={`
                 text-xs px-2 py-0.5 rounded
                 ${task.priority === 'high' ? 'bg-red-100 text-red-600' :
@@ -141,34 +133,51 @@ export default function TodoWidget() {
                 {task.priority === 'high' ? '높음' :
                  task.priority === 'medium' ? '보통' : '낮음'}
               </span>
+              <button
+                onClick={() => removeTask(task.id)}
+                className="text-xs text-gray-400 hover:text-red-500"
+                title="삭제"
+              >
+                ✕
+              </button>
             </div>
           ))}
+          {!tasks.length && !isLoading && (
+            <p className="text-xs text-gray-500 text-center py-4">등록된 할 일이 없습니다.</p>
+          )}
         </div>
 
-        {/* 새 할 일 추가 */}
         <div className="pt-2 border-t border-gray-100 flex gap-2">
           <input
             type="text"
             value={newTask}
             onChange={(e) => setNewTask(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && addTask()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                void addTask();
+              }
+            }}
             placeholder="새 할 일..."
             className="
               flex-1 px-2 py-1 text-sm
               border border-gray-300 rounded
               focus:outline-none focus:ring-1 focus:ring-green-400
             "
+            disabled={isSaving}
           />
           <button
-            onClick={addTask}
+            onClick={() => void addTask()}
+            disabled={isSaving}
             className="
               px-3 py-1 text-sm
               bg-green-500 hover:bg-green-600
+              disabled:bg-gray-300 disabled:text-gray-500
               text-white rounded
               transition-colors
             "
           >
-            추가
+            {isSaving ? '추가 중...' : '추가'}
           </button>
         </div>
       </div>

@@ -1,9 +1,12 @@
 import type { AppProps } from 'next/app';
 import Head from 'next/head';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import '../styles/globals.css';
 
 export default function App({ Component, pageProps }: AppProps) {
+  const [queryClient] = useState(() => new QueryClient());
+
   useEffect(() => {
     // PWA 서비스 워커 등록
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
@@ -20,7 +23,7 @@ export default function App({ Component, pageProps }: AppProps) {
   }, []);
 
   return (
-    <>
+    <QueryClientProvider client={queryClient}>
       <Head>
         <title>Limone Auto - 모듈형 AI 허브</title>
         <meta name="description" content="Desktop + Mobile 듀얼 패널 AI 허브" />
@@ -34,6 +37,6 @@ export default function App({ Component, pageProps }: AppProps) {
         <link rel="apple-touch-icon" href="/icon-192.png" />
       </Head>
       <Component {...pageProps} />
-    </>
+    </QueryClientProvider>
   );
 }

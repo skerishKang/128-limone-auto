@@ -10,12 +10,11 @@ import TelegramWidget from '../components/widgets/TelegramWidget';
 import DriveWidget from '../components/widgets/DriveWidget';
 
 export default function DesktopLayout() {
-  const { conversations, isLoading, createConversation, updateConversationTitle } = useConversations();
+  const { conversations, isLoading, createConversation, updateConversationTitle, isCreating } = useConversations();
   const [currentConversationId, setCurrentConversationId] = useState<number | null>(null);
-  const [isCreating, setIsCreating] = useState(false);
-  const [chatWidth, setChatWidth] = useState(0); // 0이면 flex-1로 자동 조절
+  const [chatWidth, setChatWidth] = useState<number>(0); // 고정 너비 (0이면 flex 기반)
   const [dashboardColumns, setDashboardColumns] = useState<1 | 2 | 3>(2); // 대시보드 열 수
-  const [dashboardFlex, setDashboardFlex] = useState(1); // 대시보드 flex 값
+  const [dashboardFlex, setDashboardFlex] = useState(2); // 대시보드 flex 값
   const [chatFlex, setChatFlex] = useState(1); // 채팅 flex 값
   const [layoutMode, setLayoutMode] = useState<'default' | 'chat-focused' | 'chat-only' | 'dashboard-only'>('default'); // 레이아웃 모드
   const [isLayoutMenuOpen, setIsLayoutMenuOpen] = useState(false); // 메뉴 열기/닫기
@@ -26,13 +25,10 @@ export default function DesktopLayout() {
 
   const handleNewChat = async () => {
     try {
-      setIsCreating(true);
       const newConv = await createConversation();
       setCurrentConversationId(newConv.id);
     } catch (err) {
       console.error('Failed to create conversation:', err);
-    } finally {
-      setIsCreating(false);
     }
   };
 
@@ -51,20 +47,20 @@ export default function DesktopLayout() {
     switch (mode) {
       case 'default':
         setDashboardColumns(2);
-        setDashboardFlex(1);  // 대시보드가 전체 남은 공간 차지
-        setChatFlex(0);       // 채팅은 flexGrow 사용 안함
-        setChatWidth(375);    // 모바일 해상도(375px) 고정
+        setDashboardFlex(2);
+        setChatFlex(1);
+        setChatWidth(0);
         break;
       case 'chat-focused':
         setDashboardColumns(1);
         setDashboardFlex(1);
-        setChatFlex(0);
-        setChatWidth(375);
+        setChatFlex(3);
+        setChatWidth(0);
         break;
       case 'chat-only':
         setDashboardColumns(3);
         setDashboardFlex(0);
-        setChatFlex(0);
+        setChatFlex(1);
         setChatWidth(0);  // 전체 화면 사용
         break;
       case 'dashboard-only':
@@ -77,7 +73,6 @@ export default function DesktopLayout() {
   };
 
   useEffect(() => {
-    // 첫 로드 시 2:1 모드 (기본값)
     changeLayoutMode('default');
   }, []);
 
@@ -341,7 +336,7 @@ export default function DesktopLayout() {
         className="bg-white border-r flex flex-col shadow-sm transition-all duration-200 overflow-hidden min-w-0"
         style={{
           flexGrow: dashboardFlex,
-          display: dashboardFlex === 0 ? 'none' : 'flex' // Dashboard flex가 0이면 숨김
+          display: dashboardFlex === 0 ? 'none' : 'flex'
         }}
       >
         {/* 헤더 (공통 헤더에서 제거) */}
@@ -370,9 +365,10 @@ export default function DesktopLayout() {
       <main
         className="flex flex-col bg-white shadow-sm"
         style={{
-          flexGrow: chatWidth === 0 ? 0 : 0,
-          width: chatWidth > 0 ? `${chatWidth}px` : '375px',
-          minWidth: '375px'
+          flexGrow: chatWidth === 0 ? chatFlex : 0,
+          display: chatFlex === 0 && chatWidth === 0 ? 'none' : 'flex',
+          width: chatWidth > 0 ? `${chatWidth}px` : 'auto',
+          minWidth: chatWidth > 0 ? `${chatWidth}px` : '360px'
         }}
       >
         {/* 채팅 컨테이너 - 독립 스크롤 */}

@@ -59,6 +59,35 @@ export interface Message {
   metadata?: unknown;
 }
 
+export interface TelegramUpdate {
+  update_id: number;
+  message_id?: number;
+  text?: string;
+  date?: number;
+  chat?: {
+    id?: number;
+    type?: string;
+    title?: string;
+    username?: string;
+  };
+  from?: {
+    id?: number;
+    first_name?: string;
+    last_name?: string;
+    username?: string;
+  };
+}
+
+export interface TaskItem {
+  id: string;
+  title: string;
+  completed: boolean;
+  priority: 'low' | 'medium' | 'high';
+  due_date?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface Conversation {
   id: number;
   title: string;
@@ -278,6 +307,49 @@ class ApiService {
 
   async deleteDriveFile(fileId: string): Promise<any> {
     return this.request(`/api/drive/files/${fileId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Telegram API
+  async getTelegramStatus(): Promise<{ connected: boolean; latest_update_id?: number | null; reason?: string }> {
+    return this.request('/api/telegram/status');
+  }
+
+  async getTelegramMessages(limit: number = 10): Promise<TelegramUpdate[]> {
+    const searchParams = new URLSearchParams({ limit: String(limit) });
+    return this.request<TelegramUpdate[]>(`/api/telegram/messages?${searchParams.toString()}`);
+  }
+
+  async sendTelegramMessage(chatId: string, text: string, parseMode: string = 'Markdown') {
+    return this.request('/api/telegram/send', {
+      method: 'POST',
+      body: JSON.stringify({ chat_id: chatId, text, parse_mode: parseMode }),
+    });
+  }
+
+  // Tasks API
+  async getTasks(userId: string = 'default_user'): Promise<TaskItem[]> {
+    const searchParams = new URLSearchParams({ user_id: userId });
+    return this.request<TaskItem[]>(`/api/tasks/?${searchParams.toString()}`);
+  }
+
+  async createTask(title: string, priority: 'low' | 'medium' | 'high' = 'medium', userId: string = 'default_user'): Promise<TaskItem> {
+    return this.request<TaskItem>('/api/tasks/', {
+      method: 'POST',
+      body: JSON.stringify({ title, priority, user_id: userId }),
+    });
+  }
+
+  async updateTask(taskId: string, updates: Partial<Pick<TaskItem, 'title' | 'completed' | 'priority' | 'due_date'>>): Promise<TaskItem> {
+    return this.request<TaskItem>(`/api/tasks/${taskId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  }
+
+  async deleteTask(taskId: string): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>(`/api/tasks/${taskId}`, {
       method: 'DELETE',
     });
   }

@@ -1,62 +1,75 @@
-import { useState, useEffect } from 'react';
+import { useCallback } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiService, Conversation } from '../services/api';
 
+const CONVERSATIONS_QUERY_KEY = ['conversations'];
+
 export function useConversations() {
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const queryClient = useQueryClient();
 
-  const fetchConversations = async () => {
-    setIsLoading(true);
-    try {
-      const data = await apiService.getConversations();
-      setConversations(data);
-    } catch (error) {
-      console.error('Failed to fetch conversations:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const {
+    data: conversations = [],
+    isLoading,
+    isFetching,
+    error,
+    refetch,
+  } = useQuery<Conversation[]>({
+    queryKey: CONVERSATIONS_QUERY_KEY,
+    queryFn: () => apiService.getConversations(),
+    staleTime: 60_000,
+  });
 
-  const createConversation = async (title?: string) => {
-    try {
-      // Generate default title if not provided
-      const defaultTitle = title || `새 대화 ${conversations.length + 1}`;
-      const newConv = await apiService.createConversation(defaultTitle);
-      setConversations(prev => [newConv, ...prev]);
-      return newConv;
-    } catch (error) {
-      console.error('Failed to create conversation:', error);
-      throw error;
-    }
-  };
+  const createConversationMutation = useMutation({
+    mutationFn: (title: string) => apiService.createConversation(title),
+    onSuccess: (newConversation) => {
+      queryClient.setQueryData<Conversation[]>(CONVERSATIONS_QUERY_KEY, (prev) => {
+        if (!prev) {
+          return [newConversation];
+        }
+        return [newConversation, ...prev];
+      });
+    },
+  });
 
-  const updateConversationTitle = async (id: number, newTitle: string) => {
-    try {
-      // TODO: API로 제목 업데이트
-      // await apiService.updateConversation(id, { title: newTitle });
+  const createConversation = useCallback(
+    async (title?: string) => {
+      const fallbackTitle = title?.trim() ? title : `새 대화 ${conversations.length + 1}`;
+      const newConversation = await createConversationMutation.mutateAsync(fallbackTitle);
+      return newConversation;
+    },
+    [conversations.length, createConversationMutation],
+  );
 
-      // 로컬 상태 업데이트 (API 연동 전까지)
-      setConversations(prev =>
-        prev.map(conv =>
-          conv.id === id ? { ...conv, title: newTitle } : conv
-        )
-      );
-    } catch (error) {
-      console.error('Failed to update conversation title:', error);
-      throw error;
-    }
-  };
+  const updateConversationTitle = useCallback(
+    async (id: number, newTitle: string) => {
+      // TODO: API 연동 시 mutation으로 전환 예정
+      queryClient.setQueryData<Conversation[]>(CONVERSATIONS_QUERY_KEY, (prev) => {
+        if (!prev) return prev;
+        return prev.map((conv) =>
+          conv.id === id
+            ? {
+                ...conv,
+                title: newTitle,
+              }
+            : conv,
+        );
+      });
+    },
+    [queryClient],
+  );
 
-  useEffect(() => {
-    fetchConversations();
-  }, []);
+  const refreshConversations = useCallback(() => {
+    return refetch();
+  }, [refetch]);
 
   return {
     conversations,
-    isLoading,
+    isLoading: isLoading || isFetching,
+    error,
     createConversation,
     updateConversationTitle,
-    refreshConversations: fetchConversations,
+    refreshConversations,
+    isCreating: createConversationMutation.isPending,
   };
 }
 

@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, date, time, timedelta, timezone
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from postgrest import APIError
+
+from uuid import uuid4
 
 from .supabase_client import supabase
 
@@ -27,6 +30,57 @@ def _handle_response(response) -> List[Dict[str, Any]]:
     if isinstance(data, list):
         return data
     return [data]
+
+
+_TASKS_LOCAL_PATH = Path(__file__).resolve().parent / "tasks_local.json"
+
+
+def _load_local_task_map() -> Dict[str, List[Dict[str, Any]]]:
+    if not _TASKS_LOCAL_PATH.exists():
+        return {}
+    try:
+        raw = json.loads(_TASKS_LOCAL_PATH.read_text(encoding="utf-8"))
+        if isinstance(raw, dict):
+            return {str(k): list(v) for k, v in raw.items() if isinstance(v, list)}
+        if isinstance(raw, list):
+            return {"default_user": list(raw)}
+    except json.JSONDecodeError:
+        pass
+    return {}
+
+
+def _save_local_task_map(task_map: Dict[str, List[Dict[str, Any]]]) -> None:
+    _TASKS_LOCAL_PATH.write_text(json.dumps(task_map, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _get_local_tasks(user_id: str) -> List[Dict[str, Any]]:
+    task_map = _load_local_task_map()
+    return list(task_map.get(user_id, []))
+
+
+def _set_local_tasks(user_id: str, tasks: List[Dict[str, Any]]) -> None:
+    task_map = _load_local_task_map()
+    task_map[user_id] = tasks
+    _save_local_task_map(task_map)
+
+
+def _upsert_local_task(user_id: str, task: Dict[str, Any]) -> None:
+    tasks = _get_local_tasks(user_id)
+    filtered = [t for t in tasks if str(t.get("id")) != str(task.get("id"))]
+    filtered.append(task)
+    _set_local_tasks(user_id, filtered)
+
+
+def _remove_local_task(task_id: str) -> None:
+    task_map = _load_local_task_map()
+    changed = False
+    for user_id, tasks in list(task_map.items()):
+        filtered = [t for t in tasks if str(t.get("id")) != str(task_id)]
+        if len(filtered) != len(tasks):
+            task_map[user_id] = filtered
+            changed = True
+    if changed:
+        _save_local_task_map(task_map)
 
 def create_conversation(title: str = "New Chat", user_id: str = "default_user"):
     response = (
@@ -396,6 +450,137 @@ def update_file_processed(file_id: int, result: str):
         .execute()
     )
     _handle_response(response)
+
+
+def list_tasks(user_id: str = "default_user") -> List[Dict[str, Any]]:
+    try:
+        response = (
+            supabase
+            .table("tasks")
+            .select("id,title,completed,priority,due_date,user_id,created_at,updated_at")
+            .eq("user_id", user_id)
+            .order("created_at", desc=False)
+            .execute()
+        )
+        data = _handle_response(response)
+        _set_local_tasks(user_id, data)
+        return data
+    except Exception as exc:
+        print(f"[Tasks] Supabase 목록 조회 실패 → 로컬 데이터 사용: {exc}")
+        return _get_local_tasks(user_id)
+
+
+def create_task(title: str, priority: str = "medium", user_id: str = "default_user", due_date: Optional[str] = None) -> Dict[str, Any]:
+    payload = {
+        "title": title,
+        "priority": priority,
+        "completed": False,
+        "user_id": user_id,
+    }
+    if due_date:
+        payload["due_date"] = due_date
+    try:
+        response = (
+            supabase
+            .table("tasks")
+            .insert(payload, returning="representation")
+            .execute()
+        )
+        data = _handle_response(response)
+        if data:
+            task = data[0]
+            _upsert_local_task(user_id, task)
+            return task
+    except Exception as exc:
+        print(f"[Tasks] Supabase 생성 실패 → 로컬 저장: {exc}")
+
+    task = {
+        "id": str(uuid4()),
+        "title": title,
+        "priority": priority,
+        "completed": False,
+        "user_id": user_id,
+        "due_date": due_date,
+        "created_at": datetime.utcnow().isoformat(),
+        "updated_at": datetime.utcnow().isoformat(),
+    }
+    _upsert_local_task(user_id, task)
+    return task
+
+
+def update_task(task_id: str, updates: Dict[str, Any]) -> Dict[str, Any]:
+    try:
+        if not updates:
+            task_response = (
+                supabase
+                .table("tasks")
+                .select("*")
+                .eq("id", task_id)
+                .limit(1)
+                .execute()
+            )
+            data = _handle_response(task_response)
+            if data:
+                task = data[0]
+                _upsert_local_task(task.get("user_id", "default_user"), task)
+                return task
+            return {}
+
+        response = (
+            supabase
+            .table("tasks")
+            .update(updates)
+            .eq("id", task_id)
+            .execute()
+        )
+        data = _handle_response(response)
+        if data:
+            task = data[0]
+            _upsert_local_task(task.get("user_id", "default_user"), task)
+            return task
+
+        fetched = (
+            supabase
+            .table("tasks")
+            .select("*")
+            .eq("id", task_id)
+            .limit(1)
+            .execute()
+        )
+        data = _handle_response(fetched)
+        if data:
+            task = data[0]
+            _upsert_local_task(task.get("user_id", "default_user"), task)
+            return task
+    except Exception as exc:
+        print(f"[Tasks] Supabase 업데이트 실패 → 로컬 데이터 사용: {exc}")
+
+    task_map = _load_local_task_map()
+    for user_id, tasks in task_map.items():
+        for idx, task in enumerate(tasks):
+            if str(task.get("id")) == str(task_id):
+                updated_task = {**task, **updates, "updated_at": datetime.utcnow().isoformat()}
+                tasks[idx] = updated_task
+                _save_local_task_map(task_map)
+                return updated_task
+
+    raise RuntimeError("할 일을 업데이트하지 못했습니다.")
+
+
+def delete_task(task_id: str) -> None:
+    try:
+        response = (
+            supabase
+            .table("tasks")
+            .delete()
+            .eq("id", task_id)
+            .execute()
+        )
+        _handle_response(response)
+    except Exception as exc:
+        print(f"[Tasks] Supabase 삭제 실패 → 로컬 데이터 사용: {exc}")
+    finally:
+        _remove_local_task(task_id)
 
 def save_integration_token(
     service_name: str,
