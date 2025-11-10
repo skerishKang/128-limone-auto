@@ -147,9 +147,11 @@ async def get_daily_summaries(user_id: str, limit: int = 7):
         raise HTTPException(status_code=500, detail=f"Failed to fetch daily summaries: {str(e)}")
 
 @router.get("/summaries/daily/latest", response_model=Optional[DailySummaryResponse])
-async def get_latest_daily_summary(user_id: str):
+def get_latest_daily_summary(user_id: str):
     """사용자의 최신 일일 요약 조회"""
-    summaries = await get_daily_summaries(user_id=user_id, limit=1)
+    if not user_id:
+        raise HTTPException(status_code=400, detail="user_id는 필수입니다.")
+    summaries = list_daily_summaries(user_id, limit=1)
     return summaries[0] if summaries else None
 
 @router.post("/conversations/{conversation_id}/messages")
@@ -229,7 +231,7 @@ def generate_ai_response(
         print(f"[AI] 메시지 히스토리 확보: {len(messages)}개", flush=True)
 
         print("[AI] 자동 요약 트리거 호출...", flush=True)
-        auto_events = asyncio.run(_auto_generate_summaries(conversation_id, messages))
+        auto_events = _auto_generate_summaries(conversation_id, messages)
         print(f"[AI] 자동 요약 결과: {len(auto_events)}개", flush=True)
 
         if action_result:
@@ -377,7 +379,7 @@ def _format_action_result(result: Dict[str, Any]) -> str:
     return str(result)
 
 
-async def _auto_generate_summaries(conversation_id: int, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _auto_generate_summaries(conversation_id: int, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     generated: List[Dict[str, Any]] = []
 
     conversation = get_conversation(conversation_id)
@@ -402,11 +404,11 @@ async def _auto_generate_summaries(conversation_id: int, messages: List[Dict[str
                 should_conversation_summary = True
 
     if should_conversation_summary:
-        result = await chat_action_router._handle_conversation_summary(  # pylint: disable=protected-access
+        result = asyncio.run(chat_action_router._handle_conversation_summary(  # pylint: disable=protected-access
             conversation_id,
             created_by="auto_trigger",
             trigger="auto_threshold",
-        )
+        ))
         if result and result.get("summary"):
             generated.append({**result, "auto": True, "auto_trigger": "auto_threshold"})
 
@@ -421,13 +423,13 @@ async def _auto_generate_summaries(conversation_id: int, messages: List[Dict[str
     if has_messages_yesterday:
         existing_daily = get_daily_summary_by_date(user_id, yesterday)
         if not existing_daily:
-            result = await chat_action_router._handle_daily_summary(  # pylint: disable=protected-access
+            result = asyncio.run(chat_action_router._handle_daily_summary(  # pylint: disable=protected-access
                 user_message="",
                 conversation_id=conversation_id,
                 created_by="auto_trigger",
                 target_date=yesterday,
                 trigger="auto_missing_daily",
-            )
+            ))
             if result and result.get("summary"):
                 generated.append({**result, "auto": True, "auto_trigger": "auto_missing_daily"})
 

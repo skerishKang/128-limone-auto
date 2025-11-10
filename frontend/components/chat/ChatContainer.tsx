@@ -17,7 +17,14 @@ interface ChatContainerProps {
   conversations: Conversation[];
   onSelectConversation: (id: number) => void;
   onUpdateTitle: (id: number, newTitle: string) => void;
+  onCreateNewConversation: () => Promise<void> | void;
+  onDeleteConversation?: (id: number) => Promise<void> | void;
   isLoading?: boolean;
+  isCreating?: boolean;
+  isDeleting?: boolean;
+  onRegisterExternalActions?: (
+    actions: { sendMessage: (content: string) => Promise<void> } | null,
+  ) => void;
 }
 
 export default function ChatContainer({
@@ -25,7 +32,12 @@ export default function ChatContainer({
   conversations,
   onSelectConversation,
   onUpdateTitle,
+  onCreateNewConversation,
+  onDeleteConversation,
   isLoading = false,
+  isCreating = false,
+  isDeleting = false,
+  onRegisterExternalActions,
 }: ChatContainerProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -47,10 +59,6 @@ export default function ChatContainer({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const handleQuickReply = async (content: string) => {
-    await handleSendMessage(content);
-  };
-
   const handleRegisterExternalDrop = useCallback((handler: (file: File) => Promise<void>) => {
     externalDropHandlerRef.current = handler;
     return () => {
@@ -65,7 +73,7 @@ export default function ChatContainer({
     [conversations, conversationId],
   );
 
-  const fetchMessages = async () => {
+  const fetchMessages = useCallback(async () => {
     if (!conversationId) return;
 
     setIsMessagesLoading(true);
@@ -88,9 +96,9 @@ export default function ChatContainer({
     } finally {
       setIsMessagesLoading(false);
     }
-  };
+  }, [conversationId]);
 
-  const fetchMemories = async () => {
+  const fetchMemories = useCallback(async () => {
     if (!conversationId) return;
 
     setIsMemoriesLoading(true);
@@ -102,9 +110,9 @@ export default function ChatContainer({
     } finally {
       setIsMemoriesLoading(false);
     }
-  };
+  }, [conversationId]);
 
-  const fetchLatestSummary = async () => {
+  const fetchLatestSummary = useCallback(async () => {
     const userId = currentConversation?.user_id;
     if (!userId) {
       setLatestSummary(null);
@@ -120,17 +128,51 @@ export default function ChatContainer({
     } finally {
       setIsSummaryLoading(false);
     }
+  }, [currentConversation?.user_id]);
+
+  const handleSendMessage = useCallback(
+    async (content: string, file?: File) => {
+      if (!content.trim()) return;
+
+      const userMessage: Message = {
+        id: Date.now(),
+        conversationId,
+        role: 'user',
+        content: file ? `${content} [파일 첨부: ${file.name}]` : content,
+        created_at: new Date().toISOString(),
+        timestamp: Date.now(),
+      };
+
+      setMessages((prev) => [...prev, userMessage]);
+
+      try {
+        console.log('[Chat] 메시지 전송 시작', { conversationId, content });
+        await apiService.sendMessage(conversationId, content);
+        console.log('[Chat] 메시지 전송 성공', { conversationId });
+        await fetchMessages();
+        await fetchMemories();
+        await fetchLatestSummary();
+      } catch (err) {
+        console.error('Failed to send message:', err);
+        setError('메시지를 전송하는 동안 오류가 발생했습니다.');
+      }
+    },
+    [conversationId, fetchLatestSummary, fetchMemories, fetchMessages],
+  );
+
+  const handleQuickReply = async (content: string) => {
+    await handleSendMessage(content);
   };
 
   useEffect(() => {
     fetchMessages();
     fetchMemories();
     fetchLatestSummary();
-  }, [conversationId]);
+  }, [conversationId, fetchLatestSummary, fetchMemories, fetchMessages]);
 
   useEffect(() => {
     fetchLatestSummary();
-  }, [currentConversation?.user_id]);
+  }, [fetchLatestSummary]);
 
   useEffect(() => {
     const container = dropZoneRef.current;
@@ -192,32 +234,19 @@ export default function ChatContainer({
     scrollToBottom();
   }, [messages]);
 
-  const handleSendMessage = async (content: string, file?: File) => {
-    if (!content.trim()) return;
+  useEffect(() => {
+    if (!onRegisterExternalActions) return;
 
-    const userMessage: Message = {
-      id: Date.now(),
-      conversationId,
-      role: 'user',
-      content: file ? `${content} [파일 첨부: ${file.name}]` : content,
-      created_at: new Date().toISOString(),
-      timestamp: Date.now(),
+    onRegisterExternalActions({
+      sendMessage: async (content: string) => {
+        await handleSendMessage(content);
+      },
+    });
+
+    return () => {
+      onRegisterExternalActions(null);
     };
-
-    setMessages(prev => [...prev, userMessage]);
-
-    try {
-      console.log('[Chat] 메시지 전송 시작', { conversationId, content });
-      await apiService.sendMessage(conversationId, content);
-      console.log('[Chat] 메시지 전송 성공', { conversationId });
-      await fetchMessages();
-      await fetchMemories();
-      await fetchLatestSummary();
-    } catch (err) {
-      console.error('Failed to send message:', err);
-      setError('메시지를 전송하는 동안 오류가 발생했습니다.');
-    }
-  };
+  }, [handleSendMessage, onRegisterExternalActions]);
 
   const safeJsonParse = (value?: string | null) => {
     if (!value) return null;
@@ -437,6 +466,20 @@ export default function ChatContainer({
         {/* 상단 바 - 햄버거 메뉴 포함 */}
         <div className="bg-white border-b p-3 flex items-center justify-between sticky top-0 z-10">
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  await onCreateNewConversation();
+                } catch (err) {
+                  console.error('새 대화 생성에 실패했습니다:', err);
+                }
+              }}
+              disabled={isCreating}
+              className="px-3 py-1.5 text-xs bg-yellow-500 hover:bg-yellow-600 disabled:bg-gray-200 disabled:text-gray-400 text-gray-900 rounded-lg transition-colors flex items-center gap-1"
+            >
+              {isCreating ? <LoadingSpinner size="sm" /> : '➕ 새 대화'}
+            </button>
             {conversationId ? (
               <EditableTitle
                 title={conversations.find(c => c.id === conversationId)?.title || '새 대화'}
@@ -458,6 +501,29 @@ export default function ChatContainer({
             >
               <span className="text-xl">≡</span>
             </button>
+            {conversationId && (
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!onDeleteConversation) {
+                    return;
+                  }
+                  if (!window.confirm('현재 대화를 삭제하시겠습니까?')) {
+                    return;
+                  }
+                  try {
+                    await onDeleteConversation(conversationId);
+                  } catch (err) {
+                    console.error('대화 삭제에 실패했습니다:', err);
+                  }
+                }}
+                disabled={isDeleting}
+                className="p-2 text-xs bg-red-50 hover:bg-red-100 disabled:bg-gray-200 disabled:text-gray-400 text-red-600 rounded-lg transition-colors"
+                title="대화 삭제"
+              >
+                {isDeleting ? <LoadingSpinner size="sm" /> : '삭제'}
+              </button>
+            )}
           </div>
         </div>
 
@@ -495,6 +561,10 @@ export default function ChatContainer({
           setIsSidebarOpen(false);
         }}
         onUpdateTitle={onUpdateTitle}
+        onCreateNewConversation={onCreateNewConversation}
+        onDeleteConversation={onDeleteConversation}
+        isCreating={isCreating}
+        isDeleting={isDeleting}
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
         isLoading={isLoading}

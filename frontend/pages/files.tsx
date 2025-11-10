@@ -10,6 +10,39 @@ export default function FilePage() {
   const [error, setError] = useState<string | null>(null);
   const [uploadResult, setUploadResult] = useState<FileAnalysisResponse | null>(null);
 
+  const renderStatusBadge = (status?: FileAnalysisResponse['status']) => {
+    if (!status) return null;
+    const styleMap: Record<string, { label: string; className: string }> = {
+      success: { label: '✅ 완료', className: 'bg-green-100 text-green-800' },
+      processing: { label: '⏳ 처리 중', className: 'bg-blue-100 text-blue-700' },
+      failed: { label: '❌ 실패', className: 'bg-red-100 text-red-700' },
+      error: { label: '⚠️ 오류', className: 'bg-red-100 text-red-700' },
+    };
+    const item = styleMap[status];
+    if (!item) return null;
+    return (
+      <span className={`px-2 py-1 text-xs font-semibold rounded ${item.className}`}>
+        {item.label}
+      </span>
+    );
+  };
+
+  const renderAnalysisStatusBadge = (status?: FileAnalysisResponse['analysis']['status']) => {
+    if (!status) return null;
+    const styleMap: Record<string, { label: string; className: string }> = {
+      analyzed: { label: 'AI 분석 완료', className: 'bg-green-50 text-green-700 border border-green-200' },
+      failed: { label: 'AI 분석 실패', className: 'bg-red-50 text-red-700 border border-red-200' },
+      pending: { label: 'AI 분석 대기', className: 'bg-blue-50 text-blue-700 border border-blue-200' },
+    };
+    const item = styleMap[status];
+    if (!item) return null;
+    return (
+      <span className={`px-2 py-1 text-xs font-medium rounded ${item.className}`}>
+        {item.label}
+      </span>
+    );
+  };
+
   const loadFiles = async () => {
     try {
       setIsLoading(true);
@@ -67,9 +100,12 @@ export default function FilePage() {
         {/* 업로드 결과 */}
         {uploadResult && (
           <div className="bg-white rounded-xl p-6 shadow-sm mb-6">
-            <h2 className="text-xl font-semibold text-gray-800 mb-4">
-              업로드 결과
-            </h2>
+            <div className="flex items-center justify-between mb-4 gap-3">
+              <h2 className="text-xl font-semibold text-gray-800">
+                업로드 결과
+              </h2>
+              {renderStatusBadge(uploadResult.status)}
+            </div>
             <div className="space-y-4">
               <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                 <p className="text-green-800 font-semibold">{uploadResult.message}</p>
@@ -81,21 +117,37 @@ export default function FilePage() {
                 </div>
               </div>
 
-              {uploadResult.analysis.summary && (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                  <h3 className="text-sm font-bold text-yellow-800 mb-2">AI 요약</h3>
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-yellow-800">AI 분석 결과</h3>
+                  {renderAnalysisStatusBadge(uploadResult.analysis.status)}
+                </div>
+                {uploadResult.analysis.summary && (
                   <p className="text-sm text-yellow-900 whitespace-pre-wrap">
                     {uploadResult.analysis.summary}
                   </p>
-                  {uploadResult.analysis.key_points && uploadResult.analysis.key_points.length > 0 && (
-                    <ul className="mt-3 space-y-1 text-sm text-yellow-800 list-disc list-inside">
-                      {uploadResult.analysis.key_points.map((point, idx) => (
-                        <li key={idx}>{point}</li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              )}
+                )}
+                {uploadResult.analysis.key_points && uploadResult.analysis.key_points.length > 0 && (
+                  <ul className="space-y-1 text-sm text-yellow-800 list-disc list-inside">
+                    {uploadResult.analysis.key_points.map((point, idx) => (
+                      <li key={idx}>{point}</li>
+                    ))}
+                  </ul>
+                )}
+                {uploadResult.analysis.error && (
+                  <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">
+                    오류: {uploadResult.analysis.error}
+                  </div>
+                )}
+                {uploadResult.analysis.transcript && (
+                  <div className="bg-white border border-yellow-200 rounded-md p-3">
+                    <h4 className="text-xs font-semibold text-yellow-700 mb-2">📝 전사 결과</h4>
+                    <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed max-h-64 overflow-y-auto">
+                      {uploadResult.analysis.transcript}
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {uploadResult.drive_upload && (
                 <div className={`rounded-lg p-4 border ${uploadResult.drive_upload.success ? 'border-blue-200 bg-blue-50' : 'border-red-200 bg-red-50'}`}>

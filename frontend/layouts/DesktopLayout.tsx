@@ -10,7 +10,15 @@ import TelegramWidget from '../components/widgets/TelegramWidget';
 import DriveWidget from '../components/widgets/DriveWidget';
 
 export default function DesktopLayout() {
-  const { conversations, isLoading, createConversation, updateConversationTitle, isCreating } = useConversations();
+  const {
+    conversations,
+    isLoading,
+    createConversation,
+    updateConversationTitle,
+    isCreating,
+    deleteConversation,
+    isDeleting,
+  } = useConversations();
   const [currentConversationId, setCurrentConversationId] = useState<number | null>(null);
   const [chatWidth, setChatWidth] = useState<number>(0); // 고정 너비 (0이면 flex 기반)
   const [dashboardColumns, setDashboardColumns] = useState<1 | 2 | 3>(2); // 대시보드 열 수
@@ -48,6 +56,26 @@ export default function DesktopLayout() {
     }
   };
 
+  const handleDeleteChat = async (id: number) => {
+    try {
+      await deleteConversation(id);
+      setCurrentConversationId((prev) => {
+        if (prev !== id) {
+          return prev;
+        }
+        const remaining = conversations.filter((conv) => conv.id !== id);
+        if (remaining.length === 0) {
+          return null;
+        }
+        const currentIndex = conversations.findIndex((conv) => conv.id === id);
+        const nextConversation = remaining[currentIndex] ?? remaining[currentIndex - 1] ?? remaining[0];
+        return nextConversation?.id ?? null;
+      });
+    } catch (err) {
+      console.error('Failed to delete conversation:', err);
+    }
+  };
+
   // 마우스 드래그로 너비 조절
   const handleMouseDown = (e: React.MouseEvent) => {
     isResizing.current = true;
@@ -80,7 +108,7 @@ export default function DesktopLayout() {
         setChatWidth(0);  // 전체 화면 사용
         break;
       case 'dashboard-only':
-        setDashboardColumns(1);
+        setDashboardColumns(3);
         setDashboardFlex(1);
         setChatFlex(0);
         setChatWidth(0);
@@ -365,13 +393,6 @@ export default function DesktopLayout() {
           display: dashboardFlex === 0 ? 'none' : 'flex'
         }}
       >
-        {/* 헤더 (공통 헤더에서 제거) */}
-        <div className="p-3 border-b bg-white sticky top-0 z-10">
-          <h1 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-            📊 대시보드
-          </h1>
-        </div>
-
         {/* 대시보드 위젯들 - 독립 스크롤 */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden">
           <DashboardPanel columns={dashboardColumns} onStatsChange={setSummaryStats} />
@@ -399,7 +420,6 @@ export default function DesktopLayout() {
           flexShrink: 0
         }}
       >
-        {/* 채팅 컨테이너 - 독립 스크롤 */}
         <div className="flex-1 overflow-hidden">
           {currentConversationId ? (
             <ChatContainer
@@ -407,7 +427,11 @@ export default function DesktopLayout() {
               conversations={conversations}
               onSelectConversation={setCurrentConversationId}
               onUpdateTitle={updateConversationTitle}
+              onCreateNewConversation={handleNewChat}
+              onDeleteConversation={handleDeleteChat}
               isLoading={isLoading}
+              isCreating={isCreating}
+              isDeleting={isDeleting}
             />
           ) : (
             <div className="h-full flex items-center justify-center bg-gray-50">
@@ -439,7 +463,7 @@ export default function DesktopLayout() {
           )}
         </div>
       </main>
-      </div>
+    </div>
 
       {/* ========================================
           팝업창들

@@ -7,9 +7,13 @@ interface ChatListSidebarProps {
   currentConversationId: number | null;
   onSelectConversation: (id: number) => void;
   onUpdateTitle: (id: number, newTitle: string) => void;
+  onCreateNewConversation: () => Promise<void> | void;
+  onDeleteConversation?: (id: number) => Promise<void> | void;
   isOpen: boolean;
   onClose: () => void;
   isLoading?: boolean;
+  isCreating?: boolean;
+  isDeleting?: boolean;
 }
 
 export default function ChatListSidebar({
@@ -17,9 +21,13 @@ export default function ChatListSidebar({
   currentConversationId,
   onSelectConversation,
   onUpdateTitle,
+  onCreateNewConversation,
+  onDeleteConversation,
   isOpen,
   onClose,
   isLoading = false,
+  isCreating = false,
+  isDeleting = false,
 }: ChatListSidebarProps) {
   return (
     <>
@@ -42,13 +50,27 @@ export default function ChatListSidebar({
           <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
             💬 채팅 목록
           </h2>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-            title="닫기"
-          >
-            <span className="text-xl">✕</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={async () => {
+                if (isCreating) return;
+                await onCreateNewConversation();
+              }}
+              disabled={isCreating}
+              className="px-3 py-1 text-xs bg-yellow-500 hover:bg-yellow-600 disabled:bg-gray-200 disabled:text-gray-400 text-gray-900 rounded-lg transition-colors"
+            >
+              새 대화
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              title="닫기"
+            >
+              <span className="text-xl">✕</span>
+            </button>
+          </div>
         </div>
 
         {/* Chat List */}
@@ -66,10 +88,20 @@ export default function ChatListSidebar({
               {conversations.map((conv) => (
                 <div
                   key={conv.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => onSelectConversation(conv.id)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      onSelectConversation(conv.id);
+                    }
+                  }}
                   className={`
                     p-3 rounded-lg
                     transition-colors text-sm
-                    border-2
+                    border-2 cursor-pointer
+                    focus:outline-none focus:ring-2 focus:ring-yellow-400
                     ${
                       currentConversationId === conv.id
                         ? 'bg-yellow-50 border-yellow-400'
@@ -77,15 +109,33 @@ export default function ChatListSidebar({
                     }
                   `}
                 >
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     <EditableTitle
                       title={conv.title}
                       onUpdate={(newTitle) => onUpdateTitle(conv.id, newTitle)}
                       className="flex-1"
                     />
-                    <span className="text-xs text-gray-500 ml-2">
+                    <span className="text-xs text-gray-500">
                       {conv.message_count || 0}
                     </span>
+                    {onDeleteConversation && (
+                      <button
+                        type="button"
+                        className="text-xs text-red-500 hover:text-red-700 px-2 py-1 rounded"
+                        onClick={async (event) => {
+                          event.stopPropagation();
+                          event.preventDefault();
+                          if (isDeleting) return;
+                          if (!window.confirm('이 대화를 삭제하시겠습니까?')) {
+                            return;
+                          }
+                          await onDeleteConversation(conv.id);
+                        }}
+                        disabled={isDeleting}
+                      >
+                        삭제
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}

@@ -1,6 +1,8 @@
+import asyncio
+from uuid import uuid4
 from fastapi import APIRouter, HTTPException, UploadFile, File
 from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Literal, Union
 from pathlib import Path
 import io
 from datetime import datetime
@@ -17,6 +19,8 @@ router = APIRouter()
 UPLOAD_DIR = file_processor.upload_dir
 SUMMARIES_DIR = Path(__file__).resolve().parents[2] / "summaries"
 SUMMARIES_DIR.mkdir(parents=True, exist_ok=True)
+
+PROCESSING_TASKS: Dict[str, Dict[str, Any]] = {}
 
 
 class FileMetadata(BaseModel):
@@ -43,6 +47,33 @@ class FileAnalysisResult(BaseModel):
     analysis: AnalysisPayload
     summary_path: Optional[str] = None
     drive_upload: Optional[Dict[str, Any]] = None
+
+
+class FileProcessingStatusResponse(BaseModel):
+    task_id: str
+    status: Literal['processing', 'completed', 'failed']
+    result: Optional[FileAnalysisResult] = None
+    error: Optional[str] = None
+    filename: Optional[str] = None
+
+
+class FileUploadProcessingResponse(BaseModel):
+    task_id: str
+    status: Literal['processing']
+    message: str
+    check_endpoint: str
+    filename: str
+    estimated_time: Optional[str] = "30-60초"
+
+
+class FileUploadCompletedResponse(BaseModel):
+    status: Literal['completed']
+    message: str
+    filename: str
+    result: Optional[FileAnalysisResult] = None
+
+
+FileUploadResponse = Union[FileUploadProcessingResponse, FileUploadCompletedResponse]
 
 
 def categorize_file(file_ext: Optional[str], mime_type: Optional[str]) -> str:
@@ -86,90 +117,179 @@ def save_summary_to_markdown(filename: str, category: str, analysis_result: str)
     return summary_path
 
 
-@router.post("/upload", response_model=FileAnalysisResult)
-async def upload_file(file: UploadFile = File(...)):
-    """멀티모달 AI 파일 업로드 및 분석"""
-    try:
-        saved = await file_processor.save_upload(file)
-        analysis_result = await file_processor.process_file(saved["file_path"])
+async def _run_file_analysis(saved: Dict[str, Any]) -> FileAnalysisResult:
+    analysis_result = await file_processor.process_file(saved["file_path"])
 
-        analysis_payload = analysis_result.get("analysis", {})
-        raw_payload = analysis_result.get("raw_result", {})
+    analysis_payload = analysis_result.get("analysis", {})
+    raw_payload = analysis_result.get("raw_result", {})
 
-        category = analysis_payload.get("content_type") or categorize_file(
-            saved.get("file_type"),
-            saved.get("mime_type"),
+    category = analysis_payload.get("content_type") or categorize_file(
+        saved.get("file_type"),
+        saved.get("mime_type"),
+    )
+
+    summary_text = (analysis_payload or {}).get("summary")
+    summary_path = None
+    if summary_text:
+        summary_path = save_summary_to_markdown(
+            saved["original_name"],
+            category,
+            summary_text,
         )
 
-        summary_text = (analysis_payload or {}).get("summary")
-        summary_path = None
-        if summary_text:
-            summary_path = save_summary_to_markdown(
-                saved["original_name"],
-                category,
-                summary_text,
+    drive_upload_info: Optional[Dict[str, Any]] = None
+    if category == "other":
+        try:
+            with open(saved["file_path"], "rb") as f:
+                buffer = io.BytesIO(f.read())
+                buffer.seek(0)
+            uploaded = await drive_service.upload_file(
+                stream=buffer,
+                filename=saved["original_name"],
+                mime_type=saved.get("mime_type"),
             )
+            drive_upload_info = {
+                "success": True,
+                "file_id": uploaded.get("id"),
+                "name": uploaded.get("name"),
+                "webViewLink": uploaded.get("webViewLink"),
+                "webContentLink": uploaded.get("webContentLink"),
+            }
+        except DriveAuthorizationError as exc:
+            drive_upload_info = {
+                "success": False,
+                "error": str(exc),
+                "requires_auth": True,
+            }
+        except DriveAPIError as exc:
+            drive_upload_info = {
+                "success": False,
+                "error": str(exc),
+            }
+        except Exception as exc:  # pragma: no cover - 예기치 않은 오류 로깅용
+            drive_upload_info = {
+                "success": False,
+                "error": f"Drive 업로드 실패: {exc}",
+            }
 
-        drive_upload_info: Optional[Dict[str, Any]] = None
-        if category == "other":
-            try:
-                with open(saved["file_path"], "rb") as f:
-                    buffer = io.BytesIO(f.read())
-                    buffer.seek(0)
-                uploaded = await drive_service.upload_file(
-                    stream=buffer,
-                    filename=saved["original_name"],
-                    mime_type=saved.get("mime_type"),
-                )
-                drive_upload_info = {
-                    "success": True,
-                    "file_id": uploaded.get("id"),
-                    "name": uploaded.get("name"),
-                    "webViewLink": uploaded.get("webViewLink"),
-                    "webContentLink": uploaded.get("webContentLink"),
-                }
-            except DriveAuthorizationError as exc:
-                drive_upload_info = {
-                    "success": False,
-                    "error": str(exc),
-                    "requires_auth": True,
-                }
-            except DriveAPIError as exc:
-                drive_upload_info = {
-                    "success": False,
-                    "error": str(exc),
-                }
-            except Exception as exc:  # pragma: no cover - 예기치 못한 오류 로깅용
-                drive_upload_info = {
-                    "success": False,
-                    "error": f"Drive 업로드 실패: {exc}",
-                }
+    return FileAnalysisResult(
+        success=analysis_result.get("success", True),
+        message=analysis_result.get("message", "파일 분석이 완료되었습니다."),
+        file=FileMetadata(
+            stored_name=saved["filename"],
+            original_name=saved["original_name"],
+            mime_type=saved.get("mime_type"),
+            size=saved["file_size"],
+            category=category,
+            path=saved["file_path"],
+        ),
+        analysis=AnalysisPayload(
+            summary=summary_text,
+            content_type=analysis_payload.get("content_type"),
+            key_points=analysis_payload.get("key_points", []),
+            metadata=analysis_payload.get("metadata"),
+            raw=raw_payload,
+        ),
+        summary_path=str(summary_path) if summary_path else None,
+        drive_upload=drive_upload_info,
+    )
 
-        return FileAnalysisResult(
-            success=analysis_result.get("success", True),
-            message=analysis_result.get("message", "파일 분석이 완료되었습니다."),
+
+async def _process_file_task(task_id: str, saved: Dict[str, Any]) -> None:
+    try:
+        result = await _run_file_analysis(saved)
+        PROCESSING_TASKS[task_id]["status"] = "completed"
+        result_payload = result.model_dump()
+        result_payload.setdefault("status", "success" if result.success else "failed")
+        PROCESSING_TASKS[task_id]["result"] = result_payload
+        PROCESSING_TASKS[task_id]["completed_at"] = datetime.utcnow().isoformat()
+    except Exception as exc:  # pragma: no cover - 예기치 않은 오류 로깅용
+        PROCESSING_TASKS[task_id]["status"] = "failed"
+        PROCESSING_TASKS[task_id]["error"] = str(exc)
+        PROCESSING_TASKS[task_id]["completed_at"] = datetime.utcnow().isoformat()
+
+
+@router.post("/upload", response_model=FileUploadResponse)
+async def upload_file(file: UploadFile = File(...)):
+    """멀티모달 AI 파일 업로드 (비동기 분석)"""
+    try:
+        saved = await file_processor.save_upload(file)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"파일 저장 실패: {exc}") from exc
+
+    category = categorize_file(saved.get("file_type"), saved.get("mime_type"))
+
+    if category == "image":
+        immediate_result = FileAnalysisResult(
+            success=True,
+            message="이미지 업로드가 완료되었습니다.",
             file=FileMetadata(
                 stored_name=saved["filename"],
-                original_name=saved["original_name"],
+                original_name=saved.get("original_name", saved["filename"]),
                 mime_type=saved.get("mime_type"),
-                size=saved["file_size"],
+                size=saved.get("file_size", 0),
                 category=category,
                 path=saved["file_path"],
             ),
             analysis=AnalysisPayload(
-                summary=summary_text,
-                content_type=analysis_payload.get("content_type"),
-                key_points=analysis_payload.get("key_points", []),
-                metadata=analysis_payload.get("metadata"),
-                raw=raw_payload,
+                summary=None,
+                content_type="image",
+                key_points=[],
+                metadata=None,
+                raw={
+                    "note": "이미지 파일은 업로드만 지원되며 AI 분석은 추후 제공됩니다.",
+                },
             ),
-            summary_path=str(summary_path) if summary_path else None,
-            drive_upload=drive_upload_info,
+            summary_path=None,
+            drive_upload=None,
         )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"파일 업로드 및 분석 실패: {exc}") from exc
+
+        return FileUploadCompletedResponse(
+            status="completed",
+            message="이미지 업로드가 완료되었습니다.",
+            filename=saved.get("original_name", saved.get("filename")),
+            result=immediate_result,
+        )
+
+    task_id = uuid4().hex
+    PROCESSING_TASKS[task_id] = {
+        "status": "processing",
+        "saved": saved,
+        "filename": saved.get("original_name"),
+        "started_at": datetime.utcnow().isoformat(),
+    }
+
+    asyncio.create_task(_process_file_task(task_id, saved))
+
+    return FileUploadProcessingResponse(
+        task_id=task_id,
+        status="processing",
+        message="파일 업로드 완료. AI 분석이 백그라운드에서 진행 중입니다.",
+        check_endpoint=f"/api/files/status/{task_id}",
+        filename=saved.get("original_name", saved.get("filename")),
+    )
+
+
+@router.get("/status/{task_id}", response_model=FileProcessingStatusResponse)
+async def get_file_status(task_id: str):
+    task = PROCESSING_TASKS.get(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="해당 작업을 찾을 수 없습니다.")
+
+    response: Dict[str, Any] = {
+        "task_id": task_id,
+        "status": task.get("status", "processing"),
+        "filename": task.get("filename"),
+    }
+
+    if task["status"] == "completed" and task.get("result"):
+        response["result"] = task["result"]
+    if task["status"] == "failed":
+        response["error"] = task.get("error", "파일 처리 중 오류가 발생했습니다.")
+
+    return response
 
 @router.get("/list")
 async def list_files():

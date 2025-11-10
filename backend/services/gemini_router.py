@@ -1,6 +1,8 @@
 import os
 import json
 import logging
+import base64
+from datetime import datetime
 from typing import Optional, Dict, Any, List
 from pathlib import Path
 import google.generativeai as genai
@@ -116,19 +118,17 @@ class GeminiService:
             
             # Determine API type based on file type
             if file_type.lower() in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']:
-                # Image analysis
                 return await self._analyze_image(file_path, file_type, file_size)
-            elif file_type.lower() in ['.pdf', '.doc', '.docx', '.txt', '.md']:
-                # Document analysis
+            if file_type.lower() in ['.pdf', '.doc', '.docx', '.txt', '.md']:
                 return await self._analyze_document(file_path, file_type, file_size)
-            else:
-                # General file analysis
-                return await self._analyze_general(file_path, file_type, file_size)
-                
+            if file_type.lower() in ['.mp3', '.wav', '.m4a', '.flac', '.ogg', '.aac']:
+                return await self._analyze_audio(file_path, file_type, file_size)
+            return await self._analyze_general(file_path, file_type, file_size)
+
         except Exception as e:
             print(f"File analysis error: {e}")
             return self._get_fallback_file_analysis(file_path, file_type)
-    
+
     async def _analyze_image(self, file_path: str, file_type: str, file_size: int) -> Dict[str, Any]:
         """이미지 파일 분석"""
         try:
@@ -138,6 +138,7 @@ class GeminiService:
                 "file_path": file_path,
                 "file_type": file_type,
                 "file_size": file_size,
+                "status": "success",
                 "analysis": {
                     "status": "analyzed",
                     "summary": f"이미지 파일 '{Path(file_path).name}' 분석 완료",
@@ -179,6 +180,7 @@ class GeminiService:
                 "file_path": file_path,
                 "file_type": file_type,
                 "file_size": file_size,
+                "status": "success",
                 "analysis": {
                     "status": "analyzed",
                     "summary": response,
@@ -195,12 +197,80 @@ class GeminiService:
         except Exception as e:
             return self._get_fallback_file_analysis(file_path, file_type)
     
+    async def _analyze_audio(self, file_path: str, file_type: str, file_size: int) -> Dict[str, Any]:
+        """오디오 파일 전사"""
+        try:
+            with open(file_path, "rb") as f:
+                audio_bytes = f.read()
+
+            audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
+            mime_type = self._guess_audio_mime(file_type)
+
+            instructions = (
+                "당신은 전문 오디오 전사 보조원입니다."
+                " 첨부된 오디오를 정확히 텍스트로 전사하고, 한국어와 영어를 구분하여 그대로 적어 주세요."
+                " 줄바꿈은 화자가 문장을 마칠 때마다 적용하며, 추가 요약이나 해석 없이 순수 전사만 작성합니다."
+            )
+
+            print(f"[Gemini] 오디오 전사 요청 ({file_type}, {len(audio_bytes)} bytes)", flush=True)
+            response = self.pro_vision_model.generate_content([
+                {"text": instructions},
+                {"mime_type": mime_type, "data": audio_b64},
+            ])
+
+            transcript = response.text.strip() if hasattr(response, "text") and response.text else ""
+
+            if len(transcript) < 10:
+                raise ValueError("전사 결과 텍스트가 충분하지 않습니다.")
+
+            return {
+                "file_path": file_path,
+                "file_type": file_type,
+                "file_size": file_size,
+                "status": "success",
+                "analysis": {
+                    "status": "analyzed",
+                    "summary": f"오디오 전사를 완료했습니다. (총 {len(transcript)}자)",
+                    "content_type": "audio",
+                    "transcript": transcript,
+                    "key_points": self._extract_key_points(transcript),
+                    "metadata": {
+                        "model": self.multimodal_model_name,
+                        "processed_at": datetime.utcnow().isoformat(),
+                        "api_status": "active",
+                        "mime_type": mime_type,
+                    },
+                },
+            }
+        except Exception as exc:
+            print(f"[Gemini] 오디오 전사 실패: {exc}")
+            return {
+                "file_path": file_path,
+                "file_type": file_type,
+                "file_size": file_size,
+                "status": "error",
+                "analysis": {
+                    "status": "failed",
+                    "summary": "오디오 전사를 처리하지 못했습니다.",
+                    "content_type": "audio",
+                    "transcript": "",
+                    "error": str(exc),
+                    "metadata": {
+                        "model": self.multimodal_model_name,
+                        "processed_at": datetime.utcnow().isoformat(),
+                        "api_status": "error",
+                        "mime_type": self._guess_audio_mime(file_type),
+                    },
+                },
+            }
+
     async def _analyze_general(self, file_path: str, file_type: str, file_size: int) -> Dict[str, Any]:
         """일반 파일 분석"""
         return {
             "file_path": file_path,
             "file_type": file_type,
             "file_size": file_size,
+            "status": "success",
             "analysis": {
                 "status": "analyzed",
                 "summary": f"파일 '{Path(file_path).name}' ({file_type}) 분석 완료",
@@ -280,25 +350,13 @@ class GeminiService:
         """API 실패 시 폴백 응답"""
         logger.info("[Gemini] 폴백 응답 반환")
         print("[Gemini] 폴백 응답 반환")
-        return f"""🤖 AI 분석 결과 (Beta Mode)
-
-**입력 내용**: {prompt[:200]}{'...' if len(prompt) > 200 else ''}
-
-**분석 요약**: 
-이는 Gemini API의 폴백 응답입니다. 실제 API 연동이 완료되면 더 상세하고 정확한 분석을 제공합니다.
-
-**기능 안내**:
-- ✨ 실시간 AI 응답
-- 📄 문서 요약 및 분석
-- 🖼️ 이미지 인식 및 설명
-- 💬 다중 대화 지원
-
-**다음 단계**:
-- 더 자세한 분석이 필요하시면 구체적인 질문을 해주세요!
-- 파일 업로드를 통해 AI 분석 서비스를 이용해보세요.
-
----
-💡 Powered by Gemini 2.0 Flash API"""
+        preview = prompt[:200] + ("..." if len(prompt) > 200 else "")
+        return (
+            "⚠️ AI 분석을 완료하지 못했습니다.\n\n"
+            "- 원인: Gemini API 호출이 실패했거나 설정이 누락되었습니다.\n"
+            f"- 최근 입력 요약: {preview if preview else '내용 없음'}\n\n"
+            "👉 관리자: GEMINI_API_KEY_MAIN 등 환경 변수를 확인하고, 서비스 로그에서 상세 오류를 점검하세요."
+        )
     
     def _get_fallback_file_analysis(self, file_path: str, file_type: str) -> Dict[str, Any]:
         """파일 분석 실패 시 폴백"""
@@ -306,22 +364,36 @@ class GeminiService:
             "file_path": file_path,
             "file_type": file_type,
             "file_size": Path(file_path).stat().st_size if Path(file_path).exists() else 0,
+            "status": "error",
             "analysis": {
-                "status": "analyzed",
-                "summary": f"파일 '{Path(file_path).name}' 분석 완료 (Beta Mode)",
+                "status": "failed",
+                "summary": (
+                    "AI 분석을 완료하지 못했습니다. Gemini API 키 또는 네트워크 설정을 확인해 주세요."
+                ),
                 "content_type": "file",
                 "key_points": [
                     f"파일 형식: {file_type}",
-                    "Gemini API 폴백 모드",
-                    "기본 분석 완료"
+                    "Gemini API 호출 실패 또는 미구성",
+                    "환경 변수(GEMINI_API_KEY_MAIN 등)와 서버 로그 점검 필요"
                 ],
                 "metadata": {
                     "model": "gemini-2.5-flash-exp-fallback",
-                    "processed_at": "2024-11-07",
+                    "processed_at": datetime.utcnow().isoformat(),
                     "api_status": "fallback"
                 }
             }
         }
+
+    def _guess_audio_mime(self, file_type: str) -> str:
+        ext_map = {
+            '.mp3': 'audio/mpeg',
+            '.wav': 'audio/wav',
+            '.m4a': 'audio/mp4',
+            '.flac': 'audio/flac',
+            '.ogg': 'audio/ogg',
+            '.aac': 'audio/aac',
+        }
+        return ext_map.get(file_type.lower(), 'audio/mpeg')
     
     def is_configured(self) -> bool:
         """API 키가 설정되어 있는지 확인"""

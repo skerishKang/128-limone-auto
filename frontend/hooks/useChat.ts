@@ -40,6 +40,25 @@ export function useConversations() {
     [conversations.length, createConversationMutation],
   );
 
+  const deleteConversationMutation = useMutation({
+    mutationFn: (id: number) => apiService.deleteConversation(id),
+    onSuccess: (_result, id) => {
+      queryClient.setQueryData<Conversation[]>(CONVERSATIONS_QUERY_KEY, (prev) => {
+        if (!prev) {
+          return prev;
+        }
+        return prev.filter((conv) => conv.id !== id);
+      });
+    },
+  });
+
+  const deleteConversation = useCallback(
+    async (id: number) => {
+      await deleteConversationMutation.mutateAsync(id);
+    },
+    [deleteConversationMutation],
+  );
+
   const updateConversationTitle = useCallback(
     async (id: number, newTitle: string) => {
       // TODO: API 연동 시 mutation으로 전환 예정
@@ -70,6 +89,8 @@ export function useConversations() {
     updateConversationTitle,
     refreshConversations,
     isCreating: createConversationMutation.isPending,
+    deleteConversation,
+    isDeleting: deleteConversationMutation.isPending,
   };
 }
 

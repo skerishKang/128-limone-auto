@@ -37,6 +37,7 @@ class ChatIntent(Enum):
     GENERAL = auto()
     CONVERSATION_SUMMARY = auto()
     DAILY_SUMMARY = auto()
+    AUDIO_TRANSCRIBE = auto()
     DRIVE_LIST = auto()
     DRIVE_SEARCH = auto()
     DRIVE_UPLOAD = auto()
@@ -49,9 +50,10 @@ class ChatIntent(Enum):
 class ChatActionRouter:
     """사용자 메시지를 분석해 적절한 액션을 실행하는 라우터."""
 
+    TRANSCRIBE_KEYWORDS = ["전사", "받아쓰기", "transcribe", "음성 변환", "듣고 써줘", "음성 전사"]
     SUMMARY_KEYWORDS = ["요약", "정리", "summary"]
     DAILY_KEYWORDS = ["오늘", "일일", "daily", "하루", "today"]
-    DRIVE_KEYWORDS = ["드라이브", "drive", "파일", "문서"]
+    DRIVE_KEYWORDS = ["드라이브", "drive", "구글 드라이브", "문서"]
     GMAIL_KEYWORDS = ["메일", "이메일", "gmail", "편지"]
     CALENDAR_KEYWORDS = ["일정", "캘린더", "calendar", "스케줄", "약속"]
 
@@ -60,6 +62,9 @@ class ChatActionRouter:
 
     def detect_intent(self, user_message: str) -> ChatIntent:
         text = user_message.lower()
+
+        if any(keyword in text for keyword in self.TRANSCRIBE_KEYWORDS):
+            return ChatIntent.AUDIO_TRANSCRIBE
 
         if any(keyword in text for keyword in self.SUMMARY_KEYWORDS):
             if any(keyword in text for keyword in self.DAILY_KEYWORDS):
@@ -85,6 +90,19 @@ class ChatActionRouter:
 
         return ChatIntent.GENERAL
 
+    def _handle_audio_transcribe(self) -> Dict[str, Any]:
+        return {
+            "type": "audio_transcribe_guide",
+            "message": (
+                "오디오 전사를 진행하려면 📁 파일 탭으로 이동해 음성 파일을 업로드해주세요."
+                " 업로드가 완료되면 AI가 자동으로 전사를 제공합니다."
+            ),
+            "action": {
+                "label": "파일 업로드로 이동",
+                "route": "/files"
+            }
+        }
+
     async def handle(self, user_message: str, conversation_id: Optional[int] = None) -> Optional[Dict[str, Any]]:
         intent = self.detect_intent(user_message)
         if intent == ChatIntent.GENERAL:
@@ -105,6 +123,8 @@ class ChatActionRouter:
                         "message": "일일 요약을 위해서는 기준이 되는 대화가 필요합니다.",
                     }
                 return await self._handle_daily_summary(user_message, conversation_id)
+            if intent == ChatIntent.AUDIO_TRANSCRIBE:
+                return self._handle_audio_transcribe()
             if intent == ChatIntent.DRIVE_LIST:
                 return await self._handle_drive_list()
             if intent == ChatIntent.DRIVE_SEARCH:

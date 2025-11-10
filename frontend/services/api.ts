@@ -105,6 +105,7 @@ export interface CalendarEventsResponse {
 export interface FileAnalysisResponse {
   success: boolean;
   message: string;
+  status?: 'success' | 'processing' | 'failed' | 'error';
   file: {
     stored_name: string;
     original_name: string;
@@ -119,6 +120,9 @@ export interface FileAnalysisResponse {
     key_points: string[];
     metadata?: Record<string, any>;
     raw: Record<string, any>;
+    status?: 'analyzed' | 'failed' | 'pending';
+    transcript?: string;
+    error?: string;
   };
   summary_path?: string | null;
   drive_upload?: {
@@ -132,6 +136,32 @@ export interface FileAnalysisResponse {
   } | null;
 }
 
+export interface FileProcessingTaskResponse {
+  task_id: string;
+  status: 'processing';
+  message: string;
+  check_endpoint: string;
+  filename: string;
+  estimated_time?: string;
+}
+
+export interface FileUploadCompletedResponse {
+  status: 'completed';
+  message: string;
+  filename: string;
+  result?: FileAnalysisResponse;
+}
+
+export type FileUploadResponse = FileProcessingTaskResponse | FileUploadCompletedResponse;
+
+export interface FileProcessingStatusResponse {
+  task_id: string;
+  status: 'processing' | 'completed' | 'failed';
+  result?: FileAnalysisResponse;
+  error?: string;
+  filename?: string;
+}
+
 class ApiService {
   private baseUrl: string;
 
@@ -139,13 +169,18 @@ class ApiService {
     this.baseUrl = baseUrl;
   }
 
-  private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  private async request<T>(
+    endpoint: string,
+    options: (RequestInit & { timeoutMs?: number }) = {},
+  ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
 
     // Debug logging to check which URL is being used
     console.log(`[API] Requesting: ${url}`);
 
-    const isFormData = options.body instanceof FormData;
+    const { timeoutMs, headers: optionHeaders, ...restOptions } = options;
+
+    const isFormData = restOptions.body instanceof FormData;
 
     const defaultHeaders: Record<string, string> = {
       'ngrok-skip-browser-warning': 'true', // ngrok 경고 페이지 스킵
@@ -155,13 +190,60 @@ class ApiService {
       defaultHeaders['Content-Type'] = 'application/json';
     }
 
-    const config: RequestInit = {
-      ...options,
-      headers: {
+    const resolvedHeaders = (() => {
+      if (optionHeaders instanceof Headers) {
+        return {
+          ...defaultHeaders,
+          ...Object.fromEntries(optionHeaders.entries()),
+        };
+      }
+      if (Array.isArray(optionHeaders)) {
+        return {
+          ...defaultHeaders,
+          ...Object.fromEntries(optionHeaders),
+        };
+      }
+      return {
         ...defaultHeaders,
-        ...options.headers,
-      },
+        ...(optionHeaders as Record<string, string> | undefined),
+      };
+    })();
+
+    const controller = timeoutMs && timeoutMs > 0 ? new AbortController() : undefined;
+
+    const config: RequestInit = {
+      ...restOptions,
+      headers: resolvedHeaders,
+      signal: controller?.signal,
     };
+
+    if (isFormData) {
+      if (config.headers instanceof Headers) {
+        config.headers.delete('Content-Type');
+      } else if (Array.isArray(config.headers)) {
+        config.headers = config.headers.filter(([key]) => key.toLowerCase() !== 'content-type');
+      } else if (config.headers && typeof config.headers === 'object') {
+        const headerRecord = { ...(config.headers as Record<string, string>) };
+        if ('Content-Type' in headerRecord) {
+          delete headerRecord['Content-Type'];
+        }
+        if ('content-type' in headerRecord) {
+          delete headerRecord['content-type'];
+        }
+        config.headers = headerRecord;
+      }
+
+      if (process.env.NODE_ENV !== 'production') {
+        console.debug('[API] FormData detected. Content-Type 헤더 제거 완료.');
+      }
+    }
+
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    if (controller && timeoutMs) {
+      timeoutId = setTimeout(() => {
+        controller.abort();
+      }, timeoutMs);
+    }
 
     try {
       const response = await fetch(url, config);
@@ -188,8 +270,24 @@ class ApiService {
 
       return JSON.parse(text);
     } catch (error) {
+      if ((error as DOMException)?.name === 'AbortError') {
+        const timeoutMessage = timeoutMs && timeoutMs >= 60000
+          ? `요청이 제한 시간(${Math.round(timeoutMs / 60000)}분) 동안 완료되지 않았습니다.`
+          : '요청 시간이 초과되었습니다.';
+        console.error(`[API] Request timeout: ${endpoint}`, error);
+        throw new Error(timeoutMessage);
+      }
       console.error(`[API] Request failed: ${endpoint}`, error);
       throw error;
+    } finally {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore
+      if (config.headers && config.headers['Content-Type'] === 'application/json' && config.body && typeof config.body !== 'string') {
+        console.warn('[API] JSON body is not a string. Consider using JSON.stringify.');
+      }
     }
   }
 
@@ -238,15 +336,20 @@ class ApiService {
   }
 
   // Files API
-  async uploadFile(file: File): Promise<FileAnalysisResponse> {
+  async uploadFile(file: File): Promise<FileUploadResponse> {
     const formData = new FormData();
     formData.append('file', file);
 
-    return this.request<FileAnalysisResponse>('/api/files/upload', {
+    return this.request<FileUploadResponse>('/api/files/upload', {
       method: 'POST',
       body: formData,
       headers: {},
+      timeoutMs: 300000, // 5분 타임아웃 (전사 작업 대기)
     });
+  }
+
+  async getFileStatus(taskId: string): Promise<FileProcessingStatusResponse> {
+    return this.request<FileProcessingStatusResponse>(`/api/files/status/${taskId}`);
   }
 
   async confirmFileSummary(options: { filePath: string; decision: 'save' | 'discard'; fileName?: string; mimeType?: string }): Promise<any> {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { apiService, type TelegramUpdate } from '../../services/api';
 import LoadingSpinner from '../shared/LoadingSpinner';
 
@@ -16,6 +16,33 @@ export default function TelegramWidget({ onSummaryUpdate, refreshToken }: Telegr
   const [selectedMessage, setSelectedMessage] = useState<TelegramUpdate | null>(null);
   const [replyText, setReplyText] = useState('');
   const [isSending, setIsSending] = useState(false);
+
+  const buildDisplayName = useCallback((msg: TelegramUpdate) => {
+    const chat = msg.chat ?? {};
+    const sender = msg.from ?? {};
+
+    const chatTitle = chat.title;
+    const senderName = [sender.first_name, sender.last_name].filter(Boolean).join(' ').trim();
+    const username = sender.username || chat.username;
+
+    if (chatTitle) return chatTitle;
+    if (senderName) return senderName;
+    if (username) return `@${username}`;
+    if (chat.id) return `Chat ${chat.id}`;
+    return `Update ${msg.update_id}`;
+  }, []);
+
+  const selectedDisplay = useMemo(() => {
+    if (!selectedMessage) return null;
+    const name = buildDisplayName(selectedMessage);
+    const username = selectedMessage.from?.username || selectedMessage.chat?.username;
+    const chatType = selectedMessage.chat?.type;
+    return {
+      name,
+      username: username ? `@${username}` : null,
+      chatType,
+    };
+  }, [selectedMessage, buildDisplayName]);
 
   const loadTelegram = useCallback(async () => {
     try {
@@ -121,6 +148,8 @@ export default function TelegramWidget({ onSummaryUpdate, refreshToken }: Telegr
             <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
               {messages.map((msg) => {
                 const isActive = selectedMessage?.update_id === msg.update_id;
+                const name = buildDisplayName(msg);
+                const username = msg.from?.username || msg.chat?.username;
                 return (
                   <button
                     key={msg.update_id}
@@ -134,9 +163,10 @@ export default function TelegramWidget({ onSummaryUpdate, refreshToken }: Telegr
                         : 'border-blue-100 hover:border-blue-300 hover:bg-blue-50/80'
                     }`}
                   >
-                    <p className="font-semibold text-gray-800 truncate">
-                      {msg.chat?.title || msg.from?.username || `Chat ${msg.chat?.id}`}
-                    </p>
+                    <p className="font-semibold text-gray-800 truncate">{name}</p>
+                    {username && (
+                      <p className="text-[11px] text-blue-500 truncate">@{username}</p>
+                    )}
                     <p className="text-gray-700 whitespace-pre-wrap break-words">
                       {msg.text || '(텍스트 없음)'}
                     </p>
@@ -156,8 +186,14 @@ export default function TelegramWidget({ onSummaryUpdate, refreshToken }: Telegr
                   <div>
                     <p className="text-[11px] text-gray-500">chat_id: {selectedMessage.chat?.id ?? 'N/A'}</p>
                     <p className="text-sm font-semibold text-gray-800">
-                      {selectedMessage.chat?.title || selectedMessage.from?.username || '이름 없음'}
+                      {selectedDisplay?.name || '이름 없음'}
                     </p>
+                    {selectedDisplay?.username && (
+                      <p className="text-xs text-blue-500">{selectedDisplay.username}</p>
+                    )}
+                    {selectedDisplay?.chatType && (
+                      <p className="text-[11px] text-gray-500">채팅 유형: {selectedDisplay.chatType}</p>
+                    )}
                     <p className="text-gray-700 whitespace-pre-wrap break-words text-sm mt-1">
                       {selectedMessage.text || '(텍스트 없음)'}
                     </p>
