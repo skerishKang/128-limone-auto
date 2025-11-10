@@ -1,14 +1,16 @@
 import { useState, KeyboardEvent, useRef, ChangeEvent, useEffect, useCallback } from 'react';
 import { useFileUpload } from '../../hooks/useFileUpload';
+import { type FileAnalysisResponse } from '../../services/api';
 
 interface ChatInputProps {
   onSendMessage: (content: string, file?: File) => void;
   placeholder?: string;
   disabled?: boolean;
   onRegisterExternalDrop?: (handler: (file: File) => Promise<void>) => (() => void) | void;
+  onFileProcessed?: (result: FileAnalysisResponse) => void;
 }
 
-export default function ChatInput({ onSendMessage, placeholder = '메시지를 입력하세요...', disabled = false, onRegisterExternalDrop }: ChatInputProps) {
+export default function ChatInput({ onSendMessage, placeholder = '메시지를 입력하세요...', disabled = false, onRegisterExternalDrop, onFileProcessed }: ChatInputProps) {
   const [message, setMessage] = useState('');
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -51,6 +53,9 @@ export default function ChatInput({ onSendMessage, placeholder = '메시지를 �
 
         onSendMessage(content, withFile);
         setMessage('');
+        if (uploadResult) {
+          onFileProcessed?.(uploadResult);
+        }
       } else {
         onSendMessage(message.trim());
         setMessage('');

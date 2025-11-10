@@ -1,145 +1,75 @@
-import { useState, useEffect, useCallback } from 'react';
-import { apiService } from '../../services/api';
-import LoadingSpinner from '../shared/LoadingSpinner';
-import ErrorMessage from '../shared/ErrorMessage';
 import WidgetContainer from './WidgetContainer';
+import { useGmailWidgetState } from '../../hooks/useGmailWidgetState';
 
-interface GmailMessage {
-  id: string;
-  threadId?: string;
-  subject?: string;
-  from?: string;
-  snippet?: string;
-  internalDate?: string;
-  date?: string;
-  labelIds?: string[];
-}
-
-const MAX_RECENT_MESSAGES = 3;
-
-interface GmailWidgetProps {
+interface GmailDashboardWidgetProps {
   onSummaryUpdate?: (summary: { unread: number }) => void;
   refreshToken?: number;
+  onAskAi?: (content: string) => void;
+  onSendToChat?: (content: string) => void;
 }
 
-export default function GmailWidget({ onSummaryUpdate, refreshToken }: GmailWidgetProps) {
-  const [messages, setMessages] = useState<GmailMessage[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [isAuthorized, setIsAuthorized] = useState(false);
-  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const loadMessages = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-
-      const [list, unread] = await Promise.all([
-        apiService.getGmailMessages({ maxResults: MAX_RECENT_MESSAGES }),
-        apiService.getGmailUnreadCount()
-      ]);
-
-      setMessages(Array.isArray(list) ? list : []);
-      const unreadValue = unread?.unread ?? 0;
-      setUnreadCount(unreadValue);
-      onSummaryUpdate?.({ unread: unreadValue });
-    } catch (err) {
-      console.error('Gmail 목록 로드 실패:', err);
-      setError(err instanceof Error ? err.message : 'Gmail 데이터를 불러오지 못했습니다.');
-      setMessages([]);
-      setUnreadCount(0);
-      onSummaryUpdate?.({ unread: 0 });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [onSummaryUpdate]);
-
-  const checkAuthStatus = useCallback(async () => {
-    try {
-      setIsCheckingAuth(true);
-      setError(null);
-      const status = await apiService.getGmailStatus();
-      const authorized = Boolean(status?.authorized);
-      setIsAuthorized(authorized);
-      if (authorized) {
-        await loadMessages();
-      } else {
-        setUnreadCount(0);
-        onSummaryUpdate?.({ unread: 0 });
-      }
-    } catch (err) {
-      console.error('Gmail 인증 상태 확인 실패:', err);
-      setError(err instanceof Error ? err.message : 'Gmail 인증 정보를 확인하지 못했습니다.');
-      setIsAuthorized(false);
-      setUnreadCount(0);
-      onSummaryUpdate?.({ unread: 0 });
-    } finally {
-      setIsCheckingAuth(false);
-      setIsLoading(false);
-    }
-  }, [loadMessages, onSummaryUpdate]);
-
-  useEffect(() => {
-    void checkAuthStatus();
-  }, [checkAuthStatus, refreshToken]);
-
-  const handleRefresh = async () => {
-    if (isAuthorized) {
-      await loadMessages();
-    } else {
-      await checkAuthStatus();
-    }
-  };
-
-  const handleConnect = async () => {
-    try {
-      window.location.href = await apiService.getGmailAuthUrl({ autoRedirect: true });
-    } catch (err) {
-      console.error('Gmail 인증 URL 생성 실패:', err);
-      setError(err instanceof Error ? err.message : 'Gmail 인증을 시작할 수 없습니다.');
-    }
-  };
-
-  const formatDate = (iso?: string) => {
-    if (!iso) {
-      return '';
-    }
-    try {
-      const date = new Date(Number(iso) || iso);
-      if (Number.isNaN(date.getTime())) {
-        return '';
-      }
-      return date.toLocaleString();
-    } catch {
-      return '';
-    }
-  };
+export default function GmailWidget({ onSummaryUpdate, refreshToken, onAskAi, onSendToChat }: GmailDashboardWidgetProps) {
+  const {
+    filteredEmails,
+    selectedEmail,
+    searchTerm,
+    showUnreadOnly,
+    unreadCount,
+    isAuthorized,
+    isLoading,
+    isCheckingAuth,
+    error,
+    handleSearchChange,
+    handleToggleUnread,
+    handleSelectEmail,
+    handleAskAi,
+    handleSendToChat,
+    handleRefresh,
+    handleConnect,
+  } = useGmailWidgetState({ onSummaryUpdate, refreshToken, onAskAi, onSendToChat });
 
   return (
     <WidgetContainer
       title="Gmail"
       icon="📧"
       accentColorClass="border-red-500"
+      className="h-full flex flex-col"
+      collapsedSummary={<span className="text-xs text-gray-500">읽지 않은 메일 {unreadCount}개</span>}
       headerExtras={(
         <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 bg-gray-100 rounded-full px-3 py-1">
+            <span className="text-gray-600 text-sm">🔍</span>
+            <input
+              value={searchTerm}
+              onChange={handleSearchChange}
+              placeholder="메일 검색"
+              className="bg-transparent text-sm focus:outline-none"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={handleToggleUnread}
+            className={`px-3 py-1 rounded-full text-sm transition-colors ${showUnreadOnly ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+          >
+            안 읽음
+          </button>
           <button
             type="button"
             onClick={handleRefresh}
             className="text-xs px-2 py-1 rounded bg-red-50 text-red-600 hover:bg-red-100"
-            disabled={isCheckingAuth || isLoading}
           >
-            {isCheckingAuth ? '확인 중...' : '새로고침'}
+            새로고침
           </button>
-          {isLoading && <LoadingSpinner size="sm" />}
         </div>
       )}
-      collapsedSummary={<span className="text-xs text-gray-500">읽지 않은 메일 {unreadCount}개</span>}
-      className="h-full flex flex-col"
     >
-      {error && <ErrorMessage message={error} />}
+      {error && (
+        <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+          {error}
+        </div>
+      )}
 
-      {!isCheckingAuth && !isAuthorized ? (
+      {!isAuthorized ? (
         <div className="flex flex-col items-center justify-center gap-4 py-6 text-center border border-dashed border-red-300 rounded-xl bg-red-50/60">
           <p className="text-sm text-gray-700">Gmail에 연결하여 최신 메일을 확인하세요.</p>
           <button
@@ -151,48 +81,134 @@ export default function GmailWidget({ onSummaryUpdate, refreshToken }: GmailWidg
           </button>
         </div>
       ) : (
-        <div className="space-y-3 flex-1 flex flex-col">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-gray-500">읽지 않은 메일</p>
-              <p className="text-2xl font-bold text-red-600">{unreadCount}</p>
+        <div className="flex-1 flex overflow-hidden border border-gray-200 rounded-xl bg-white">
+          <div className="w-1/2 border-r border-gray-200 flex flex-col overflow-hidden">
+            <div className="px-4 py-2 text-xs text-gray-500 border-b bg-white flex items-center justify-between">
+              <span>최근 메일 {filteredEmails.length}건</span>
+              <a
+                href="https://mail.google.com/mail/u/0/#inbox"
+                target="_blank"
+                rel="noreferrer"
+                className="text-blue-500 hover:text-blue-600"
+              >
+                Gmail에서 열기 ↗
+              </a>
             </div>
-            <button
-              type="button"
-              onClick={() => window.open('https://mail.google.com', '_blank')}
-              className="text-xs text-blue-500 hover:underline"
-            >
-              Gmail 열기
-            </button>
+            <div className="flex-1 overflow-auto">
+              {isLoading || isCheckingAuth ? (
+                <div className="flex justify-center items-center h-full text-sm text-gray-500">
+                  불러오는 중...
+                </div>
+              ) : filteredEmails.length === 0 ? (
+                <div className="flex justify-center items-center h-full text-sm text-gray-500">
+                  조건에 맞는 메일이 없습니다.
+                </div>
+              ) : (
+                filteredEmails.map((email) => {
+                  const isActive = selectedEmail?.id === email.id;
+                  return (
+                    <button
+                      key={email.id}
+                      type="button"
+                      onClick={() => handleSelectEmail(email.id)}
+                      className={`w-full text-left border-b border-gray-200 px-4 py-3 transition-colors ${
+                        isActive ? 'bg-blue-50' : 'hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className={`font-medium ${email.unread ? 'text-gray-900' : 'text-gray-700'}`}>
+                              {email.from}
+                            </span>
+                            {email.unread && <span className="w-2 h-2 bg-blue-500 rounded-full" />}
+                          </div>
+                          <div className={`text-sm font-semibold mb-1 truncate ${email.unread ? 'text-gray-900' : 'text-gray-600'}`}>
+                            {email.subject}
+                          </div>
+                          <div className="text-xs text-gray-500 truncate">
+                            {email.preview}
+                          </div>
+                        </div>
+                        <div className="text-xs text-gray-400 whitespace-nowrap">
+                          {email.time}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })
+              )}
+            </div>
           </div>
 
-          {isLoading ? (
-            <div className="flex justify-center py-6">
-              <LoadingSpinner size="sm" />
-            </div>
-          ) : messages.length > 0 ? (
-            <div className="pt-2 border-t border-gray-100 space-y-2 flex-1 overflow-y-auto">
-              <p className="text-xs font-medium text-gray-600">최근 이메일</p>
-              {messages.map((message) => (
-                <div key={message.id} className="rounded-lg border border-gray-100 p-2">
-                  <p className="text-sm font-medium text-gray-800 truncate">
-                    {message.subject || '(제목 없음)'}
-                  </p>
-                  {message.from && (
-                    <p className="text-xs text-gray-500 truncate">{message.from}</p>
-                  )}
-                  {message.snippet && (
-                    <p className="text-xs text-gray-500 mt-1 line-clamp-2">{message.snippet}</p>
-                  )}
-                  <p className="text-[11px] text-gray-400 mt-1">{formatDate(message.internalDate || message.date)}</p>
+          <div className="w-1/2 flex flex-col">
+            {selectedEmail ? (
+              <div className="flex-1 flex flex-col overflow-hidden">
+                <div className="px-6 py-4 border-b bg-white">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-sm text-gray-500">{selectedEmail.from}</p>
+                      <h3 className="text-lg font-semibold text-gray-900 mt-1">
+                        {selectedEmail.subject}
+                      </h3>
+                      <p className="text-xs text-gray-500 mt-1">{selectedEmail.time}</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={handleAskAi}
+                        className="px-3 py-1.5 rounded-lg text-xs font-medium bg-yellow-400 hover:bg-yellow-500 text-gray-900"
+                      >
+                        AI에게 질문
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSendToChat}
+                        className="px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-500 hover:bg-blue-600 text-white"
+                      >
+                        채팅으로 공유
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap gap-1">
+                    {selectedEmail.labels?.map((label) => (
+                      <span key={label} className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-600">
+                        #{label}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-sm text-gray-500 text-center py-4 border border-dashed border-gray-200 rounded-lg">
-              최근 메일이 없습니다.
-            </div>
-          )}
+
+                <div className="flex-1 overflow-auto px-6 py-4 space-y-3">
+                  <div className="rounded-lg bg-white p-4 shadow-sm border border-gray-200">
+                    <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
+                      {selectedEmail.bodyText}
+                    </p>
+                  </div>
+
+                  <div className="rounded-lg bg-yellow-50 border border-yellow-200 p-4 text-sm text-yellow-800">
+                    <p className="font-semibold mb-1">추천 질문</p>
+                    <ul className="space-y-1">
+                      <li>• 이 메일의 핵심 내용을 요약해줘</li>
+                      <li>• 이 메일에 대한 적절한 답장 초안을 작성해줘</li>
+                      <li>• 이 메일에서 해야 할 일을 정리해줘</li>
+                    </ul>
+                  </div>
+
+                  <div className="rounded-lg bg-gray-100 border border-gray-200 p-4 text-sm text-gray-700">
+                    <p className="font-semibold mb-1">미리보기</p>
+                    <p className="text-xs text-gray-500">실제 Gmail 서식과 다를 수 있습니다.</p>
+                    <div className="mt-2 bg-white rounded border border-gray-200 p-3" dangerouslySetInnerHTML={{ __html: selectedEmail.bodyHtml }} />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex-1 flex items-center justify-center text-sm text-gray-500">
+                메일을 선택하면 내용을 표시합니다.
+              </div>
+            )}
+          </div>
         </div>
       )}
     </WidgetContainer>

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import ChatContainer from '../components/chat/ChatContainer';
 import DashboardPanel from '../components/dashboard/DashboardPanel';
 import { useConversations } from '../hooks/useChat';
@@ -46,6 +46,16 @@ export default function DesktopLayout() {
     drive: summaryStats.driveFiles,
     todo: summaryStats.tasksTotal,
   }), [summaryStats]);
+
+  const [chatActions, setChatActions] = useState<{ sendMessage: (content: string) => Promise<void> } | null>(null);
+
+  const handleWidgetSendMessage = useCallback((content: string) => {
+    if (!chatActions) {
+      console.warn('[DesktopLayout] 채팅 액션이 등록되지 않았습니다.');
+      return;
+    }
+    void chatActions.sendMessage(content);
+  }, [chatActions]);
 
   const handleNewChat = async () => {
     try {
@@ -432,6 +442,7 @@ export default function DesktopLayout() {
               isLoading={isLoading}
               isCreating={isCreating}
               isDeleting={isDeleting}
+              onRegisterExternalActions={setChatActions}
             />
           ) : (
             <div className="h-full flex items-center justify-center bg-gray-50">
@@ -476,7 +487,10 @@ export default function DesktopLayout() {
         width="900px"
         height="700px"
       >
-        <GmailWidget />
+        <GmailWidget
+          onAskAi={handleWidgetSendMessage}
+          onSendToChat={handleWidgetSendMessage}
+        />
       </Popup>
 
       {/* Calendar 팝업 */}

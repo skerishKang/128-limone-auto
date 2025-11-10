@@ -162,6 +162,98 @@ export interface FileProcessingStatusResponse {
   filename?: string;
 }
 
+export interface GeminiStatusResponse {
+  model: string;
+  configured: boolean;
+  api_keys_loaded: {
+    main: boolean;
+    document: boolean;
+    audio: boolean;
+    image: boolean;
+  };
+  base_url: string;
+}
+
+export type GeminiSummaryStyle = 'bullet' | 'executive' | 'table';
+
+export interface GeminiSummarizePayload {
+  filename: string;
+  summary_style?: GeminiSummaryStyle;
+  include_questions?: boolean;
+  custom_prompt?: string;
+  max_chars?: number;
+  tag_count?: number;
+}
+
+export interface GeminiSummaryResult {
+  summary?: string;
+  key_points?: string[];
+  action_items?: string[];
+  questions?: string[];
+  tags?: string[];
+  raw?: string;
+}
+
+export interface GeminiSummaryResponse {
+  filename: string;
+  result: GeminiSummaryResult;
+}
+
+export interface GeminiQuestionPayload {
+  filename: string;
+  question: string;
+  custom_prompt?: string;
+  max_chars?: number;
+}
+
+export interface GeminiQuestionResult {
+  answer: string;
+  supporting_evidence?: string[];
+  confidence?: string;
+  followup_questions?: string[];
+  raw?: string;
+}
+
+export interface GeminiQuestionResponse {
+  filename: string;
+  question: string;
+  result: GeminiQuestionResult;
+}
+
+export interface GeminiTagsPayload {
+  filename: string;
+  tag_count?: number;
+  custom_prompt?: string;
+  max_chars?: number;
+}
+
+export interface GeminiTagsResponse {
+  filename: string;
+  tags: string[];
+}
+
+export interface GeminiComparePayload {
+  left_filename: string;
+  right_filename: string;
+  focus?: string;
+  max_chars?: number;
+}
+
+export interface GeminiCompareResult {
+  summary: string;
+  similarities: string[];
+  differences: string[];
+  risks: string[];
+  recommendations: string[];
+  raw?: string;
+}
+
+export interface GeminiCompareResponse {
+  left_filename: string;
+  right_filename: string;
+  result: GeminiCompareResult;
+}
+
 class ApiService {
   private baseUrl: string;
 
@@ -411,6 +503,39 @@ class ApiService {
   async deleteDriveFile(fileId: string): Promise<any> {
     return this.request(`/api/drive/files/${fileId}`, {
       method: 'DELETE',
+    });
+  }
+
+  // Gemini API
+  async getGeminiStatus(): Promise<GeminiStatusResponse> {
+    return this.request('/api/gemini/status');
+  }
+
+  async summarizeDocument(payload: GeminiSummarizePayload): Promise<GeminiSummaryResponse> {
+    return this.request('/api/gemini/document/summarize', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async askDocumentQuestion(payload: GeminiQuestionPayload): Promise<GeminiQuestionResponse> {
+    return this.request('/api/gemini/document/question', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async generateDocumentTags(payload: GeminiTagsPayload): Promise<GeminiTagsResponse> {
+    return this.request('/api/gemini/document/tags', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async compareDocuments(payload: GeminiComparePayload): Promise<GeminiCompareResponse> {
+    return this.request('/api/gemini/document/compare', {
+      method: 'POST',
+      body: JSON.stringify(payload),
     });
   }
 

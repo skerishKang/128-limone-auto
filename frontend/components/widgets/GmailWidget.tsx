@@ -1,78 +1,218 @@
-import { useState } from 'react';
+import { useGmailWidgetState } from '../../hooks/useGmailWidgetState';
 
-interface Email {
-  id: number;
-  from: string;
-  subject: string;
-  preview: string;
-  time: string;
-  unread: boolean;
+interface GmailWidgetProps {
+  onAskAi?: (content: string) => void;
+  onSendToChat?: (content: string) => void;
 }
 
-export default function GmailWidget() {
-  const [emails] = useState<Email[]>([
-    { id: 1, from: 'Google', subject: 'Gmail 보안 알림', preview: '새로운 기기에서 Gmail 계정에 로그인했습니다.', time: '10분 전', unread: true },
-    { id: 2, from: 'notifications@github.com', subject: '새 커밋이 푸시되었습니다', preview: '128-limone-auto 저장소에 새로운 커밋이 푸시되었습니다.', time: '1시간 전', unread: true },
-    { id: 3, from: 'slack@limone.com', subject: '#general 채널 새로운 메시지', preview: '오늘 회의 일정을 확인해주세요.', time: '2시간 전', unread: false },
-    { id: 4, from: ' calendário@google.com', subject: '회의 알림: 주간 회고', preview: '내일 오후 2시에 주간 회고 회의가 있습니다.', time: '3시간 전', unread: true },
-    { id: 5, from: 'drive@google.com', subject: '드라이브 스토리지 용량 알림', preview: '드라이브 저장공간이 80% 사용되었습니다.', time: '1일 전', unread: false },
-  ]);
+export default function GmailWidget({ onAskAi, onSendToChat }: GmailWidgetProps) {
+  const {
+    filteredEmails,
+    selectedEmail,
+    searchTerm,
+    showUnreadOnly,
+    unreadCount,
+    isAuthorized,
+    isLoading,
+    isCheckingAuth,
+    error,
+    handleSearchChange,
+    handleToggleUnread,
+    handleSelectEmail,
+    handleAskAi,
+    handleSendToChat,
+    handleRefresh,
+    handleConnect,
+  } = useGmailWidgetState({ onAskAi, onSendToChat });
 
   return (
     <div className="h-full bg-gray-50 flex flex-col">
-      {/* Gmail 스타일 헤더 */}
-      <div className="h-14 bg-white border-b border-gray-200 flex items-center px-4 gap-3 flex-shrink-0">
+      <div className="h-16 bg-white border-b border-gray-200 flex items-center px-4 gap-3 flex-shrink-0">
         <div className="flex-1 flex items-center gap-3">
           <span className="text-red-500 text-2xl">📧</span>
-          <span className="font-semibold text-gray-800">Gmail</span>
+          <div>
+            <p className="font-semibold text-gray-900">Gmail</p>
+            <p className="text-xs text-gray-500">최근 메일을 확인하고 AI에게 바로 물어보세요</p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
-          <button className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-            <span className="text-gray-600">🔍</span>
+          <div className="flex items-center gap-2 bg-gray-100 rounded-full px-3 py-1">
+            <span className="text-gray-600 text-sm">🔍</span>
+            <input
+              value={searchTerm}
+              onChange={handleSearchChange}
+              placeholder="메일 검색"
+              className="bg-transparent text-sm focus:outline-none"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={handleToggleUnread}
+            className={`px-3 py-1 rounded-full text-sm transition-colors ${showUnreadOnly ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+          >
+            안 읽음
           </button>
-          <button className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-            <span className="text-gray-600">⚙️</span>
+          <button
+            type="button"
+            onClick={handleRefresh}
+            className="px-3 py-1 rounded-full text-sm bg-red-50 text-red-600 hover:bg-red-100"
+          >
+            새로고침
           </button>
         </div>
       </div>
 
-      {/* 메일 목록 */}
-      <div className="flex-1 overflow-auto">
-        {emails.map((email) => (
-          <div
-            key={email.id}
-            className={`border-b border-gray-200 p-4 hover:bg-gray-50 cursor-pointer transition-colors ${
-              email.unread ? 'bg-blue-50' : ''
-            }`}
+      {error && (
+        <div className="mx-4 mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+          {error}
+        </div>
+      )}
+
+      {!isAuthorized ? (
+        <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center px-6">
+          <p className="text-sm text-gray-600">Gmail 계정을 연결하면 최신 메일을 확인하고 AI 액션을 사용할 수 있습니다.</p>
+          <button
+            type="button"
+            onClick={handleConnect}
+            className="px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white text-sm font-medium"
           >
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className={`font-medium ${email.unread ? 'text-gray-900' : 'text-gray-700'}`}>
-                    {email.from}
-                  </span>
-                  {email.unread && <span className="w-2 h-2 bg-blue-500 rounded-full"></span>}
+            Gmail 연동
+          </button>
+        </div>
+      ) : (
+        <div className="flex-1 flex overflow-hidden">
+          <div className="w-1/2 border-r border-gray-200 flex flex-col overflow-hidden">
+            <div className="px-4 py-2 text-xs text-gray-500 border-b bg-white flex items-center justify-between">
+              <span>최근 메일 {filteredEmails.length}건 • 읽지 않음 {unreadCount}건</span>
+              <a
+                href="https://mail.google.com/mail/u/0/#inbox"
+                target="_blank"
+                rel="noreferrer"
+                className="text-blue-500 hover:text-blue-600"
+              >
+                Gmail에서 열기 ↗
+              </a>
+            </div>
+            <div className="flex-1 overflow-auto">
+              {isLoading || isCheckingAuth ? (
+                <div className="flex justify-center items-center h-full text-sm text-gray-500">
+                  불러오는 중...
                 </div>
-                <div className={`text-sm font-medium mb-1 ${email.unread ? 'text-gray-900' : 'text-gray-600'}`}>
-                  {email.subject}
+              ) : filteredEmails.length === 0 ? (
+                <div className="flex justify-center items-center h-full text-sm text-gray-500">
+                  조건에 맞는 메일이 없습니다.
                 </div>
-                <div className="text-xs text-gray-500 truncate">
-                  {email.preview}
-                </div>
-              </div>
-              <div className="text-xs text-gray-400 whitespace-nowrap">
-                {email.time}
-              </div>
+              ) : (
+                filteredEmails.map((email) => {
+                  const isActive = selectedEmail?.id === email.id;
+                  return (
+                    <button
+                      key={email.id}
+                      type="button"
+                      onClick={() => handleSelectEmail(email.id)}
+                      className={`w-full text-left border-b border-gray-200 px-4 py-3 transition-colors ${
+                        isActive ? 'bg-blue-50' : 'hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className={`font-medium ${email.unread ? 'text-gray-900' : 'text-gray-700'}`}>
+                              {email.from}
+                            </span>
+                            {email.unread && <span className="w-2 h-2 bg-blue-500 rounded-full" />}
+                          </div>
+                          <div className={`text-sm font-semibold mb-1 truncate ${email.unread ? 'text-gray-900' : 'text-gray-600'}`}>
+                            {email.subject}
+                          </div>
+                          <div className="text-xs text-gray-500 truncate">
+                            {email.preview}
+                          </div>
+                        </div>
+                        <div className="text-xs text-gray-400 whitespace-nowrap">
+                          {email.time}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })
+              )}
             </div>
           </div>
-        ))}
-      </div>
 
-      {/* 하단 액션 바 */}
-      <div className="h-12 bg-white border-t border-gray-200 flex items-center justify-center flex-shrink-0">
-        <button className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium">
-          모든 메일 보기
-        </button>
+          <div className="w-1/2 flex flex-col">
+            {selectedEmail ? (
+              <div className="flex-1 flex flex-col overflow-hidden">
+                <div className="px-6 py-4 border-b bg-white">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-sm text-gray-500">{selectedEmail.from}</p>
+                      <h3 className="text-lg font-semibold text-gray-900 mt-1">
+                        {selectedEmail.subject}
+                      </h3>
+                      <p className="text-xs text-gray-500 mt-1">{selectedEmail.time}</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={handleAskAi}
+                        className="px-3 py-1.5 rounded-lg text-xs font-medium bg-yellow-400 hover:bg-yellow-500 text-gray-900"
+                      >
+                        AI에게 질문
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSendToChat}
+                        className="px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-500 hover:bg-blue-600 text-white"
+                      >
+                        채팅으로 공유
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex-1 overflow-auto px-6 py-4 space-y-3">
+                  <div className="rounded-lg bg-white p-4 shadow-sm border border-gray-200">
+                    <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
+                      {selectedEmail.bodyText}
+                    </p>
+                  </div>
+
+                  <div className="rounded-lg bg-yellow-50 border border-yellow-200 p-4 text-sm text-yellow-800">
+                    <p className="font-semibold mb-1">추천 질문</p>
+                    <ul className="space-y-1">
+                      <li>• 이 메일의 핵심 내용을 요약해줘</li>
+                      <li>• 이 메일에 대한 적절한 답장 초안을 작성해줘</li>
+                      <li>• 이 메일에서 해야 할 일을 정리해줘</li>
+                    </ul>
+                  </div>
+
+                  <div className="rounded-lg bg-gray-100 border border-gray-200 p-4 text-sm text-gray-700">
+                    <p className="font-semibold mb-1">미리보기</p>
+                    <p className="text-xs text-gray-500">실제 Gmail 서식과 다를 수 있습니다.</p>
+                    <div className="mt-2 bg-white rounded border border-gray-200 p-3" dangerouslySetInnerHTML={{ __html: selectedEmail.bodyHtml }} />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex-1 flex items-center justify-center text-sm text-gray-500">
+                메일을 선택하면 내용을 표시합니다.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className="h-12 bg-white border-t border-gray-200 flex items-center justify-between flex-shrink-0 px-4">
+        <span className="text-xs text-gray-500">AI 분석을 위해 메일을 선택한 후 버튼을 눌러주세요.</span>
+        <a
+          href="https://mail.google.com/mail/u/0/#inbox"
+          target="_blank"
+          rel="noreferrer"
+          className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium"
+        >
+          Gmail 전체 보기
+        </a>
       </div>
     </div>
   );

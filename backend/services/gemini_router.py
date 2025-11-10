@@ -5,6 +5,7 @@ import base64
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 from pathlib import Path
+
 import google.generativeai as genai
 
 
@@ -338,6 +339,307 @@ class GeminiService:
                 "대화"
             )
             return self._get_fallback_response(last_user_message)
+
+    def _clean_json_text(self, text: str) -> Optional[str]:
+        """```json 코드 블록 등을 제거하고 JSON 문자열만 추출"""
+        if not text:
+            return None
+
+        stripped = text.strip()
+        if stripped.startswith("```"):
+            parts = stripped.split("```")
+            for part in parts:
+                candidate = part.strip()
+                if not candidate:
+                    continue
+                if candidate.lower().startswith("json"):
+                    candidate = candidate[4:].strip()
+                if candidate:
+                    stripped = candidate
+                    break
+
+        stripped = stripped.strip()
+        if stripped.endswith("```"):
+            stripped = stripped[:-3].strip()
+
+        if not stripped:
+            return None
+
+        if stripped[0] not in "[{":
+            brace_idx = stripped.find("{")
+            bracket_idx = stripped.find("[")
+            candidates = [idx for idx in (brace_idx, bracket_idx) if idx >= 0]
+            if candidates:
+                start = min(candidates)
+                stripped = stripped[start:].strip()
+
+        return stripped or None
+
+    def _read_text_excerpt(self, file_path: Path, max_chars: int = 8000) -> str:
+        """텍스트 기반 문서의 앞부분을 안전하게 읽어오기"""
+        with open(file_path, "r", encoding="utf-8", errors="ignore") as stream:
+            content = stream.read(max_chars)
+        return content
+
+    async def summarize_document_file(
+        self,
+        file_path: Path,
+        *,
+        summary_style: Optional[str] = None,
+        custom_prompt: Optional[str] = None,
+        include_questions: bool = True,
+        max_chars: int = 8000,
+        tag_count: int = 5,
+    ) -> Dict[str, Any]:
+        """문서를 요약하고 핵심 포인트/태그/질문을 JSON으로 반환"""
+
+        excerpt = self._read_text_excerpt(file_path, max_chars=max_chars)
+        if not excerpt.strip():
+            raise ValueError("문서 내용이 비어 있습니다. 다른 파일을 선택해 주세요.")
+
+        style_guide = ""
+        if summary_style == "bullet":
+            style_guide = "- 요약은 간결한 불릿 형식으로 작성하세요."
+        elif summary_style == "executive":
+            style_guide = "- 경영진 브리핑처럼 핵심 위주로 작성하세요."
+        elif summary_style == "table":
+            style_guide = "- 표 형식의 요약을 위한 항목을 제안하세요."
+
+        custom_instruction = custom_prompt.strip() if custom_prompt else ""
+
+        prompt = f"""
+다음 문서를 한국어로 분석하여 JSON만 반환하세요.
+
+필수 요구 사항:
+- summary: 전체 요약 (문단 1~3개)
+- key_points: 핵심 포인트 3~6개 (각 항목은 50자 이내)
+- action_items: 후속 조치 또는 TODO 0~5개
+- questions: 독자가 던질 만한 질문 0~5개 (include_questions가 False이면 빈 배열)
+- tags: 문서 주제를 나타내는 태그 배열 #{tag 형태 아님}
+
+제약 조건:
+- 모든 배열 요소는 한국어 문장으로 작성
+- JSON 외 텍스트 출력 금지
+- tag_count 수만큼 태그 제공 (가능한 경우)
+- questions는 옵션이며 요청이 False이면 빈 배열 유지
+
+추가 스타일 지시사항:
+{style_guide}
+{custom_instruction}
+
+문서 내용 (일부 발췌):
+"""
+{excerpt}
+"""
+"""
+
+        system_instruction = (
+            "당신은 한국어 문서 요약 전문가입니다. 명확하고 간결하게 JSON만 반환하세요."
+        )
+
+        response_text = await self.generate_text(prompt, system_instruction=system_instruction)
+
+        cleaned = self._clean_json_text(response_text)
+        data: Dict[str, Any] = {}
+
+        if cleaned:
+            try:
+                loaded = json.loads(cleaned)
+                if isinstance(loaded, dict):
+                    data = loaded
+            except json.JSONDecodeError:
+                logger.warning("[Gemini] JSON 파싱 실패. 원문 사용")
+
+        summary_text = data.get("summary")
+        if not isinstance(summary_text, str) or not summary_text.strip():
+            summary_text = response_text.strip()
+
+        key_points = data.get("key_points")
+        if not isinstance(key_points, list):
+            key_points = self._extract_key_points(summary_text)
+
+        action_items = data.get("action_items")
+        if not isinstance(action_items, list):
+            action_items = []
+
+        questions = data.get("questions")
+        if not isinstance(questions, list) or not include_questions:
+            if include_questions:
+                questions = self._extract_key_points(summary_text)[:3]
+            else:
+                questions = []
+
+        tags = data.get("tags")
+        if not isinstance(tags, list) or not tags:
+            tags = [tag.strip() for tag in self._extract_key_points(summary_text)[:tag_count]]
+
+        return {
+            "summary": summary_text,
+            "key_points": key_points,
+            "action_items": action_items,
+            "questions": questions[:5],
+            "tags": tags[:tag_count] if tag_count > 0 else [],
+            "raw": response_text.strip(),
+        }
+
+    async def answer_document_question(
+        self,
+        file_path: Path,
+        question: str,
+        *,
+        max_chars: int = 8000,
+        custom_prompt: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """문서 기반 질의응답"""
+
+        excerpt = self._read_text_excerpt(file_path, max_chars=max_chars)
+        if not excerpt.strip():
+            raise ValueError("문서 내용이 비어 있습니다.")
+
+        extra_instruction = custom_prompt.strip() if custom_prompt else ""
+
+        prompt = f"""
+다음 문서를 기반으로 질문에 답하세요. 답변은 한국어로 작성하고, 문서에 근거하지 않은 추측은 피하세요.
+
+문서 발췌:
+"""
+{excerpt}
+"""
+
+질문: {question}
+
+요구 사항:
+- answer: 질문에 대한 명확한 답변 (한국어 단락)
+- supporting_evidence: 근거가 되는 문서 내용 요약 1~3개
+- confidence: high/medium/low 중 하나
+- followup_questions: 연관 질문 0~3개
+- JSON만 출력
+{extra_instruction}
+"""
+
+        response_text = await self.generate_text(prompt, system_instruction="문서 기반 QA 전문가")
+
+        cleaned = self._clean_json_text(response_text)
+        data: Dict[str, Any] = {
+            "answer": response_text.strip(),
+            "supporting_evidence": [],
+            "confidence": "medium",
+            "followup_questions": [],
+        }
+
+        if cleaned:
+            try:
+                loaded = json.loads(cleaned)
+                if isinstance(loaded, dict):
+                    data.update(loaded)
+            except json.JSONDecodeError:
+                logger.warning("[Gemini] QA JSON 파싱 실패")
+        data.setdefault("raw", response_text.strip())
+
+        return data
+
+    async def generate_document_tags(
+        self,
+        file_path: Path,
+        *,
+        tag_count: int = 5,
+        max_chars: int = 6000,
+        custom_prompt: Optional[str] = None,
+    ) -> List[str]:
+        """문서 태그 자동 생성"""
+
+        excerpt = self._read_text_excerpt(file_path, max_chars=max_chars)
+        if not excerpt.strip():
+            return []
+
+        instruction = custom_prompt.strip() if custom_prompt else ""
+
+        prompt = f"""
+다음 문서의 주제를 대표하는 태그 {tag_count}개를 JSON 리스트로 제공하세요.
+- 태그는 한국어 단어 또는 짧은 구문으로 작성
+- '#' 기호 없이 순수 텍스트만 사용
+- 중요도 순으로 정렬
+- JSON 이외 텍스트 출력 금지
+{instruction}
+
+문서 발췌:
+"""
+{excerpt}
+"""
+"""
+
+        response_text = await self.generate_text(prompt, system_instruction="태그 생성 전문가")
+
+        cleaned = self._clean_json_text(response_text)
+        if cleaned:
+            try:
+                loaded = json.loads(cleaned)
+                if isinstance(loaded, list):
+                    tags = [str(tag).strip() for tag in loaded if str(tag).strip()]
+                    return tags[:tag_count]
+            except json.JSONDecodeError:
+                logger.warning("[Gemini] 태그 JSON 파싱 실패")
+
+        return []
+
+    async def compare_documents(
+        self,
+        left_path: Path,
+        right_path: Path,
+        *,
+        focus: Optional[str] = None,
+        max_chars: int = 6000,
+    ) -> Dict[str, Any]:
+        """두 문서를 비교 분석"""
+
+        left_excerpt = self._read_text_excerpt(left_path, max_chars=max_chars)
+        right_excerpt = self._read_text_excerpt(right_path, max_chars=max_chars)
+
+        focus_clause = f"비교 시 중점 분야: {focus}" if focus else ""
+
+        prompt = f"""
+다음 두 문서를 비교 분석하여 JSON만 반환하세요.
+
+필수 키:
+- summary: 전체 비교 요약
+- similarities: 유사점 목록 (최대 5개)
+- differences: 차이점 목록 (최대 5개)
+- risks: 잠재 리스크 또는 주의사항 0~5개
+- recommendations: 후속 권장 사항 0~5개
+
+{focus_clause}
+
+문서 A:
+"""
+{left_excerpt}
+"""
+
+문서 B:
+"""
+{right_excerpt}
+"""
+"""
+
+        response_text = await self.generate_text(prompt, system_instruction="비교 분석 전문가")
+
+        cleaned = self._clean_json_text(response_text)
+        if cleaned:
+            try:
+                loaded = json.loads(cleaned)
+                if isinstance(loaded, dict):
+                    loaded.setdefault("raw", response_text.strip())
+                    return loaded
+            except json.JSONDecodeError:
+                logger.warning("[Gemini] 비교 JSON 파싱 실패")
+
+        return {
+            "summary": response_text.strip(),
+            "similarities": [],
+            "differences": [],
+            "risks": [],
+            "recommendations": [],
+            "raw": response_text.strip(),
+        }
     
     def _extract_key_points(self, text: str) -> List[str]:
         """텍스트에서 핵심 포인트 추출"""
