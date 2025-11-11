@@ -158,14 +158,14 @@ export default function GmailWidget({ onAskAi, onSendToChat }: GmailWidgetProps)
                         onClick={handleAskAi}
                         className="px-3 py-1.5 rounded-lg text-xs font-medium bg-yellow-400 hover:bg-yellow-500 text-gray-900"
                       >
-                        AI에게 질문
+                        AI
                       </button>
                       <button
                         type="button"
                         onClick={handleSendToChat}
                         className="px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-500 hover:bg-blue-600 text-white"
                       >
-                        채팅으로 공유
+                        채팅
                       </button>
                     </div>
                   </div>

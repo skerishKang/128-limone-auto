@@ -2,6 +2,7 @@ import os
 import json
 import logging
 import base64
+import textwrap
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 from pathlib import Path
@@ -407,31 +408,37 @@ class GeminiService:
 
         custom_instruction = custom_prompt.strip() if custom_prompt else ""
 
-        prompt = f"""
-다음 문서를 한국어로 분석하여 JSON만 반환하세요.
+        prompt_template = textwrap.dedent(
+            """
+            다음 문서를 한국어로 분석하여 JSON만 반환하세요.
 
-필수 요구 사항:
-- summary: 전체 요약 (문단 1~3개)
-- key_points: 핵심 포인트 3~6개 (각 항목은 50자 이내)
-- action_items: 후속 조치 또는 TODO 0~5개
-- questions: 독자가 던질 만한 질문 0~5개 (include_questions가 False이면 빈 배열)
-- tags: 문서 주제를 나타내는 태그 배열 #{tag 형태 아님}
+            필수 요구 사항:
+            - summary: 전체 요약 (문단 1~3개)
+            - key_points: 핵심 포인트 3~6개 (각 항목은 50자 이내)
+            - action_items: 후속 조치 또는 TODO 0~5개
+            - questions: 독자가 던질 만한 질문 0~5개 (include_questions가 False이면 빈 배열)
+            - tags: 문서 주제를 나타내는 태그 배열 (tag 형태 아님)
 
-제약 조건:
-- 모든 배열 요소는 한국어 문장으로 작성
-- JSON 외 텍스트 출력 금지
-- tag_count 수만큼 태그 제공 (가능한 경우)
-- questions는 옵션이며 요청이 False이면 빈 배열 유지
+            제약 조건:
+            - 모든 배열 요소는 한국어 문장으로 작성
+            - JSON 외 텍스트 출력 금지
+            - tag_count 수만큼 태그 제공 (가능한 경우)
+            - questions는 옵션이며 요청이 False이면 빈 배열 유지
 
-추가 스타일 지시사항:
-{style_guide}
-{custom_instruction}
+            추가 스타일 지시사항:
+            {style_guide}
+            {custom_instruction}
 
-문서 내용 (일부 발췌):
-"""
-{excerpt}
-"""
-"""
+            문서 내용 (일부 발췌):
+            {excerpt}
+            """
+        )
+
+        prompt = prompt_template.format(
+            style_guide=style_guide,
+            custom_instruction=custom_instruction,
+            excerpt=excerpt,
+        )
 
         system_instruction = (
             "당신은 한국어 문서 요약 전문가입니다. 명확하고 간결하게 JSON만 반환하세요."
@@ -498,24 +505,30 @@ class GeminiService:
 
         extra_instruction = custom_prompt.strip() if custom_prompt else ""
 
-        prompt = f"""
-다음 문서를 기반으로 질문에 답하세요. 답변은 한국어로 작성하고, 문서에 근거하지 않은 추측은 피하세요.
+        prompt_template = textwrap.dedent(
+            """
+            다음 문서를 기반으로 질문에 답하세요. 답변은 한국어로 작성하고, 문서에 근거하지 않은 추측은 피하세요.
 
-문서 발췌:
-"""
-{excerpt}
-"""
+            문서 발췌:
+            {excerpt}
 
-질문: {question}
+            질문: {question}
 
-요구 사항:
-- answer: 질문에 대한 명확한 답변 (한국어 단락)
-- supporting_evidence: 근거가 되는 문서 내용 요약 1~3개
-- confidence: high/medium/low 중 하나
-- followup_questions: 연관 질문 0~3개
-- JSON만 출력
-{extra_instruction}
-"""
+            요구 사항:
+            - answer: 질문에 대한 명확한 답변 (한국어 단락)
+            - supporting_evidence: 근거가 되는 문서 내용 요약 1~3개
+            - confidence: high/medium/low 중 하나
+            - followup_questions: 연관 질문 0~3개
+            - JSON만 출력
+            {extra_instruction}
+            """
+        )
+
+        prompt = prompt_template.format(
+            excerpt=excerpt,
+            question=question,
+            extra_instruction=extra_instruction,
+        )
 
         response_text = await self.generate_text(prompt, system_instruction="문서 기반 QA 전문가")
 
@@ -554,19 +567,25 @@ class GeminiService:
 
         instruction = custom_prompt.strip() if custom_prompt else ""
 
-        prompt = f"""
-다음 문서의 주제를 대표하는 태그 {tag_count}개를 JSON 리스트로 제공하세요.
-- 태그는 한국어 단어 또는 짧은 구문으로 작성
-- '#' 기호 없이 순수 텍스트만 사용
-- 중요도 순으로 정렬
-- JSON 이외 텍스트 출력 금지
-{instruction}
+        prompt_template = textwrap.dedent(
+            """
+            다음 문서의 주제를 대표하는 태그 {tag_count}개를 JSON 리스트로 제공하세요.
+            - 태그는 한국어 단어 또는 짧은 구문으로 작성
+            - '#' 기호 없이 순수 텍스트만 사용
+            - 중요도 순으로 정렬
+            - JSON 이외 텍스트 출력 금지
+            {instruction}
 
-문서 발췌:
-"""
-{excerpt}
-"""
-"""
+            문서 발췌:
+            {excerpt}
+            """
+        )
+
+        prompt = prompt_template.format(
+            tag_count=tag_count,
+            instruction=instruction,
+            excerpt=excerpt,
+        )
 
         response_text = await self.generate_text(prompt, system_instruction="태그 생성 전문가")
 
@@ -597,28 +616,32 @@ class GeminiService:
 
         focus_clause = f"비교 시 중점 분야: {focus}" if focus else ""
 
-        prompt = f"""
-다음 두 문서를 비교 분석하여 JSON만 반환하세요.
+        prompt_template = textwrap.dedent(
+            """
+            다음 두 문서를 비교 분석하여 JSON만 반환하세요.
 
-필수 키:
-- summary: 전체 비교 요약
-- similarities: 유사점 목록 (최대 5개)
-- differences: 차이점 목록 (최대 5개)
-- risks: 잠재 리스크 또는 주의사항 0~5개
-- recommendations: 후속 권장 사항 0~5개
+            필수 키:
+            - summary: 전체 비교 요약
+            - similarities: 유사점 목록 (최대 5개)
+            - differences: 차이점 목록 (최대 5개)
+            - risks: 잠재 리스크 또는 주의사항 0~5개
+            - recommendations: 후속 권장 사항 0~5개
 
-{focus_clause}
+            {focus_clause}
 
-문서 A:
-"""
-{left_excerpt}
-"""
+            문서 A:
+            {left_excerpt}
 
-문서 B:
-"""
-{right_excerpt}
-"""
-"""
+            문서 B:
+            {right_excerpt}
+            """
+        )
+
+        prompt = prompt_template.format(
+            focus_clause=focus_clause,
+            left_excerpt=left_excerpt,
+            right_excerpt=right_excerpt,
+        )
 
         response_text = await self.generate_text(prompt, system_instruction="비교 분석 전문가")
 

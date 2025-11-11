@@ -275,6 +275,17 @@ export function useGmailWidgetState({
     return emails.find((email) => email.id === selectedEmailId) ?? null;
   }, [emails, selectedEmailId]);
 
+  useEffect(() => {
+    if (filteredEmails.length === 0) {
+      setSelectedEmailId(null);
+      return;
+    }
+
+    if (!selectedEmailId || !filteredEmails.some((email) => email.id === selectedEmailId)) {
+      setSelectedEmailId(filteredEmails[0].id);
+    }
+  }, [filteredEmails, selectedEmailId]);
+
   const handleSearchChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(event.target.value);
   }, []);

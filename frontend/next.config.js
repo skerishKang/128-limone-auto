@@ -1,6 +1,10 @@
+const path = require('path');
+
 /** @type {import('next').NextConfig} */
+const isStaticExport = process.env.NEXT_EXPORT === 'true';
+
 const nextConfig = {
-  output: 'export',  // Netlify 정적 배포를 위한 설정
+  ...(isStaticExport ? { output: 'export' } : {}),
   reactStrictMode: true,
   swcMinify: true,
 
@@ -19,6 +23,30 @@ const nextConfig = {
 
   // Bundle analyzer (optional)
   webpack: (config, { dev, isServer }) => {
+    if (dev && !isServer) {
+      const ignoredGlobs = [
+        '**/node_modules/**',
+        '**/.git/**',
+        '**/System Volume Information/**',
+        'G:/System Volume Information/**',
+        'G:/System Volume Information*',
+        'G:/System Volume Information',
+        'G:/System Volume Information/*',
+        'G:/System Volume Information/.*',
+        'G:/System Volume Information/**',
+        'G:/System Volume Information?*',
+        'G:/System Volume Information +(*)',
+        'G:/System Volume Information/**/*',
+        'G:/System Volume Information/****',
+        'G:/System Volume Information/*/**',
+        'G:/System Volume Information/*/*'
+      ];
+
+      config.watchOptions = {
+        ...config.watchOptions,
+        ignored: ignoredGlobs,
+      };
+    }
     if (!dev && !isServer) {
       // Optimize bundle for production
       config.optimization = {
@@ -51,6 +79,9 @@ const nextConfig = {
 
   // PWA support
   async headers() {
+    if (isStaticExport) {
+      return [];
+    }
     return [
       {
         source: '/(.*)',
